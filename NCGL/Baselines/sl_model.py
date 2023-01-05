@@ -40,6 +40,7 @@ class NET(torch.nn.Module):
         self.current_task = -1
         self.buffer_node_ids = []
         self.budget = int(args.sl_args['budget'])
+        self.max_size = int(args.sl_args['max_size'] * args.n_cls * self.budget)
         self.d_CM = args.sl_args['d'] # d for CM sampler of ERGNN
         self.aux_g = None
 
@@ -93,6 +94,22 @@ class NET(torch.nn.Module):
                 g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
                 self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
                 self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+                # TODO: when self.buffer_node_ids is full, start to replace nodes with more class
+                if len(self.buffer_node_ids) > self.max_size:
+                    print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
+                    _ids_per_cls = [torch.nonzero(self.aux_labels == j).squeeze().tolist() for j in range(args.n_cls)]
+                    _node_ids_per_cls = [[self.buffer_node_ids[idx] for idx in ids] for ids in _ids_per_cls]
+                    while len(self.buffer_node_ids) > self.max_size:
+                        largest_cls = max(enumerate(_node_ids_per_cls), key=lambda item: len(item[1]))[0]
+                        _removed = random.choice(_node_ids_per_cls[largest_cls])
+                        _node_ids_per_cls[largest_cls].remove(_removed)
+                        self.buffer_node_ids.remove(_removed)
+
+                # TODO: run it again with the correct size
+                g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
+                self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
+                self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+
                 if args.cls_balance:
                     n_per_cls = [(self.aux_labels == j).sum() for j in range(args.n_cls)]
                     loss_w_ = [1. / max(i, 1) for i in n_per_cls]  # weight to balance the loss of different class
@@ -107,14 +124,57 @@ class NET(torch.nn.Module):
                 loss_aux = self.ce(output[:, offset1:offset2], self.aux_labels, weight=self.aux_loss_w_[offset1: offset2])
             else:
                 loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
-            
+
+                
+            structure_loss = 0
             if prev_model is not None:
                 # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
-                _, _, prev_feats = prev_model(self.aux_g, self.aux_features, return_feats=True)
-                dce_loss = nn.CosineEmbeddingLoss()(feats.view(1, -1), prev_feats.view(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
-            
-            # loss = beta * loss + (1 - beta) * loss_aux
-            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)
+                prev_output, _, _ = prev_model(self.aux_g, self.aux_features, return_feats=True)
+                # adj_matrix = self.aux_g.adj()
+                feat_src, _ = expand_as_pair(self.aux_features)
+                self.aux_g.srcdata['h'] = feat_src
+                self.aux_g.apply_edges(lambda edges: {'se': torch.sum((torch.mul(edges.src['h'], torch.tanh(edges.dst['h']))), 1)})
+                soft_edges = self.aux_g.edata.pop('se')
+                rand_k_node_samples = random.sample(range(0, self.aux_g.num_nodes()), K_SAMPLES)
+
+                for node_idx in rand_k_node_samples:
+                    # For the old (previous task) model.
+                    # Get the different in term of features between the target node and its neighbor nodes. (This aims to extract the
+                    # structure information between the node and its neighbors).
+                    prev_feats = prev_output[:, offset1:offset2]
+                    # ref_neighbor_nodes = prev_feats[adj_matrix[node_idx].to_dense().bool()]
+                    ref_neighbor_nodes = soft_edges.unsqueeze(1) * prev_feats
+                    if ref_neighbor_nodes.numel() > 0:
+                        ref_neighbors_feat = ref_neighbor_nodes.sum(dim=0)
+                        ref_diff_vector = prev_feats[node_idx] - ref_neighbors_feat
+                    else:
+                        ref_diff_vector = None
+
+                    # For the current model.
+                    # Get the different in term of features between the target node and its neighbor nodes. (This aims to extract the
+                    # structure information between the node and its neighbors).
+                    cur_feats = output[:, offset1:offset2]
+                    # cur_neighbor_nodes = cur_feats[adj_matrix[node_idx].to_dense().bool()]
+                    cur_neighbor_nodes = soft_edges.unsqueeze(1) * cur_feats
+                    if cur_neighbor_nodes.numel() > 0:
+                        cur_neighbors_feat = cur_neighbor_nodes.sum(dim=0)
+                        cur_diff_vector = cur_feats[node_idx] - cur_neighbors_feat
+                    else:
+                        cur_diff_vector = None
+
+                    if ref_diff_vector is not None and cur_diff_vector is not None:
+                        if (ref_diff_vector == ref_diff_vector).all():
+                            # Skip if two vectors are similar.
+                            continue
+                        
+                        # Calculate the difference (similarity) of the learned structure information between the old model and the
+                        # current model.
+                        step_structure_loss = nn.CosineEmbeddingLoss()(torch.unsqueeze(ref_diff_vector, dim=0),
+                                                                        torch.unsqueeze(cur_diff_vector, dim=0),
+                                                                        torch.ones(1).to('cuda:{}'.format(args.gpu)))
+                        structure_loss += step_structure_loss
+
+            loss = beta * loss + (1 - beta) * (loss_aux + structure_loss)
 
         loss.backward()
         self.opt.step()
