@@ -273,12 +273,6 @@ class NET(torch.nn.Module):
             # knowledge distillation
             if t > 0:
                 target = prev_model.forward_batch(blocks, input_features)
-
-                xx = prev_model.forward_batch(blocks, input_features, return_feats=True)[-1]
-                yy = self.net.forward_batch(blocks, input_features, return_feats=True)[-1]
-                print(xx.sum(), yy.sum())
-                import pdb; pdb.set_trace()
-
                 if isinstance(target, tuple):
                     target = target[0]
                 for oldt in range(t):

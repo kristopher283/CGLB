@@ -151,12 +151,11 @@ if __name__ == '__main__':
                     torch.cuda.empty_cache()
                     break
 
-            hyp_best_str = hyp_params_str
             if np.mean(AP_dict[hyp_params_str]) > AP_best:
                 AP_best = np.mean(AP_dict[hyp_params_str])
-                # hyp_best_str = hyp_params_str
+                hyp_best_str = hyp_params_str
                 name_best = name
-            print(f'best params is {hyp_best_str}, best AP is {AP_best}')
+                print(f'best params is {hyp_best_str}, best AP is {AP_best}')
             with open(f'{args.result_path}/{name}.pkl', 'wb') as f:
                 pickle.dump(acc_matrices, f)
 
