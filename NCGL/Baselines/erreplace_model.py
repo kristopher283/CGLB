@@ -80,8 +80,9 @@ class NET(torch.nn.Module):
         else:
             loss = self.ce(output[train_ids], labels[train_ids], weight=loss_w_)
 
+        # sample and store ids from current task
+        # store only once for each task
         if t!=self.current_task:
-            # if the incoming task is new
             self.current_task = t
             sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
             old_ids = g.ndata['_ID'].cpu() # '_ID' are the original ids in the original graph before splitting
@@ -309,8 +310,6 @@ class NET(torch.nn.Module):
                 sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
-                if len(self.buffer_node_ids) > self.max_size:
-                    print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
                 if t > 0:
                     g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
                     self.aux_g = g.to(device='cuda:{}'.format(args.gpu))
