@@ -84,8 +84,9 @@ class NET(torch.nn.Module):
         else:
             loss = self.ce(output[train_ids], labels[train_ids], weight=loss_w_)
 
+        # sample and store ids from current task
+        # store only once for each task
         if t!=self.current_task:
-            # if the incoming task is new
             self.current_task = t
             sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
             old_ids = g.ndata['_ID'].cpu() # '_ID' are the original ids in the original graph before splitting
@@ -119,7 +120,7 @@ class NET(torch.nn.Module):
 
         if t!=0:
             # calculate auxiliary loss based on replay if not the first task
-            output, _, feats = self.net(self.aux_g, self.aux_features, return_feats=True)
+            output, _ = self.net(self.aux_g, self.aux_features)
             if args.classifier_increase:
                 loss_aux = self.ce(output[:, offset1:offset2], self.aux_labels, weight=self.aux_loss_w_[offset1: offset2])
             else:
@@ -129,7 +130,7 @@ class NET(torch.nn.Module):
             structure_loss = 0
             if prev_model is not None:
                 # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
-                prev_output, _, _ = prev_model(self.aux_g, self.aux_features, return_feats=True)
+                prev_output, _ = prev_model(self.aux_g, self.aux_features)
                 # adj_matrix = self.aux_g.adj()
                 feat_src, _ = expand_as_pair(self.aux_features)
                 self.aux_g.srcdata['h'] = feat_src
@@ -357,12 +358,29 @@ class NET(torch.nn.Module):
             loss = self.ce(output_predictions[:, offset1:offset2], output_labels, weight=loss_w_[offset1: offset2])
 
             # sample and store ids from current task
+            # store only once for each task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM, using_half=False)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
                 if t > 0:
+                    g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
+                    self.aux_g = g.to(device='cuda:{}'.format(args.gpu))
+                    self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+
+                    # TODO: when self.buffer_node_ids is full, start to replace nodes with more class
+                    if len(self.buffer_node_ids) > self.max_size:
+                        print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
+                        _ids_per_cls = [torch.nonzero(self.aux_labels == j).squeeze().tolist() for j in range(args.n_cls)]
+                        _node_ids_per_cls = [[self.buffer_node_ids[idx] for idx in ids] for ids in _ids_per_cls]
+                        while len(self.buffer_node_ids) > self.max_size:
+                            largest_cls = max(enumerate(_node_ids_per_cls), key=lambda item: len(item[1]))[0]
+                            _removed = random.choice(_node_ids_per_cls[largest_cls])
+                            _node_ids_per_cls[largest_cls].remove(_removed)
+                            self.buffer_node_ids.remove(_removed)
+
+                    # TODO: run it again with the correct size
                     g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
                     self.aux_g = g.to(device='cuda:{}'.format(args.gpu))
                     self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
@@ -373,9 +391,8 @@ class NET(torch.nn.Module):
                     else:
                         loss_w_ = [1. for i in range(args.n_cls)]
                     self.aux_loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args.gpu))
-
             if t != 0:
-                output, _, _ = self.net(self.aux_g, self.aux_features, return_feats=True)
+                output, _ = self.net(self.aux_g, self.aux_features)
                 if args.classifier_increase:
                     loss_aux = self.ce(output[:, offset1:offset2], self.aux_labels,
                                        weight=self.aux_loss_w_[offset1: offset2])
@@ -385,7 +402,7 @@ class NET(torch.nn.Module):
                 structure_loss = 0
                 if prev_model is not None:
                     # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
-                    prev_output, edge_list, _ = prev_model(self.aux_g, self.aux_features, return_feats=True)
+                    prev_output, _ = prev_model(self.aux_g, self.aux_features)
                     # adj_matrix = self.aux_g.adj()
                     feat_src, _ = expand_as_pair(self.aux_features)
                     self.aux_g.srcdata['h'] = feat_src
