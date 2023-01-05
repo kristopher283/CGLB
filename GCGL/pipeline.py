@@ -370,7 +370,7 @@ def pipeline_multi_label(args, valid=False):
                 dt.date(), dt.hour, dt.minute, dt.second,str(random.randint(100,999))))
         for epoch in range(epochs):
             # Train
-            if args['method'] == 'lwf':
+            if args['method'] == 'lwf' or args['method'] == 'dce':
                 life_model_ins.observe(train_loader, loss_criterion, tid, args, prev_model)
             else:
                 life_model_ins.observe(train_loader, loss_criterion, tid, args)
@@ -392,7 +392,7 @@ def pipeline_multi_label(args, valid=False):
             mkdir_if_missing(f"{args['result_path']}/{subfolder_c}/val_models")
             with open(save_model_path, 'wb') as f:
                 pickle.dump(model, f)
-        if args['method'] == 'lwf':
+        if args['method'] == 'lwf' or args['method'] == 'dce':
             prev_model = copy.deepcopy(life_model_ins).cuda(args['gpu']) if valid else None
 
     AP = round(np.mean(score_matrix[-1, :]), 4)

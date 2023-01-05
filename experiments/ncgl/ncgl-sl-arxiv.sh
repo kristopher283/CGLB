@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 python3 NCGL/train.py \
+CUDA_VISIBLE_DEVICES=1 python3 NCGL/train.py \
 	--dataset Arxiv-CL \
 	--method sl \
 	--backbone GCN \

@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='G-CGL')
     parser.add_argument('--backbone', type=str, default='GCN', choices=['CusGCN','GCN', 'GAT', 'Weave', 'HPNs'],
                         help='Model to use')
-    parser.add_argument('--method', type=str, choices=['bare', 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain'],
+    parser.add_argument('--method', type=str, choices=['bare', 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain', 'dce'],
                         default='twp', help='Method to use')
     parser.add_argument('-d', '--dataset', type=str, choices=['SIDER-tIL','Tox21-tIL','Aromaticity-CL'], default='Aromaticity-CL',
                         help='Dataset to use')
@@ -31,6 +31,7 @@ if __name__ == '__main__':
     # parameters for different methods
     parser.add_argument('--lwf_args', type=str2dict, default={'lambda_dist': [1.0], 'T': [2.0]})
     parser.add_argument('--twp_args', type=str2dict, default={'lambda_l': 10000., 'lambda_t': 100., 'beta': 0.1})
+    parser.add_argument('--dce_args', type=str2dict, default={'lambda_l': 10000., 'lambda_t': 100., 'beta': 0.1})
     parser.add_argument('--ewc_args', type=str2dict, default={'memory_strength': [10000.,1000000.]})
     parser.add_argument('--mas_args', type=str2dict, default={'memory_strength': 10000.})
     parser.add_argument('--gem_args', type=str2dict, default={'memory_strength': 0.5, 'n_memories': 100})
@@ -59,7 +60,8 @@ if __name__ == '__main__':
     args.update(get_exp_configure(args['exp']))
 
     method_args = {'lwf': args['lwf_args'], 'twp': args['twp_args'],'jointtrain':args['joint_args'],'jointreplay':args['joint_args'],
-                   'ewc': args['ewc_args'], 'bare': args['bare_args'], 'gem': args['gem_args'], 'mas': args['mas_args']}
+                   'ewc': args['ewc_args'], 'bare': args['bare_args'], 'gem': args['gem_args'], 'mas': args['mas_args'],
+                   'dce': args['dce_args'],}
     hyp_param_list = compose_hyper_params(method_args[args['method']])
     AP_best, name_best = 0, None
     #AP_best, name_best, model_best, hyp_best = 0, None, None, None
@@ -133,11 +135,12 @@ if __name__ == '__main__':
                 AP_best = np.mean(AP_dict[hyp_params_str])
                 hyp_best_str = hyp_params_str
                 name_best = name
-            print(f'best params is {hyp_best_str}, best AP is {AP_best}')
+                print(f'best params is {hyp_best_str}, best AP is {AP_best}')
             with open(f"{args['result_path']}/{name}.pkl", 'wb') as f:
                 pickle.dump(acc_matrices, f)
 
     # save the models
+    name_best = name
     config_name = name_best.split('/')[-1]
     subfolder_c = name_best.split(config_name)[-2]
     print('----------Now in testing--------')

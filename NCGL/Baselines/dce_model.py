@@ -105,9 +105,16 @@ class NET(torch.nn.Module):
                 loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
             
             if prev_model is not None:
-                # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
-                _, _, prev_feats = prev_model(self.aux_g, self.aux_features, return_feats=True)
-                dce_loss = nn.CosineEmbeddingLoss()(feats.view(1, -1), prev_feats.view(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
+                # # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
+                # _, _, prev_feats = prev_model(self.aux_g, self.aux_features, return_feats=True)
+                # dce_loss = nn.CosineEmbeddingLoss()(feats.view(1, -1), prev_feats.view(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
+                prev_output, _, prev_feats = prev_model(self.aux_g, self.aux_features, return_feats=True)
+                for oldt in range(t):
+                    o1, o2 = self.task_manager.get_label_offset(oldt)
+                    dist_logits = output[:, o1:o2]
+                    dist_target = prev_output[:, o1:o2]
+                    step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
+                    dce_loss += step_dce_loss
             
             # loss = beta * loss + (1 - beta) * loss_aux
             loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)

@@ -91,7 +91,7 @@ class GCNPredictor(nn.Module):
         self.predict = MLPPredictor(2 * gnn_out_feats, predictor_hidden_feats,
                                     n_tasks, predictor_dropout)
 
-    def forward(self, bg, feats):
+    def forward(self, bg, feats, return_feats=False):
         """Graph-level regression/soft classification.
         Parameters
         ----------
@@ -108,6 +108,8 @@ class GCNPredictor(nn.Module):
             * B for the number of graphs in the batch
         """
         node_feats, att = self.gnn(bg, feats)
-
         graph_feats = self.readout(bg, node_feats)
-        return self.predict(graph_feats), att
+        if return_feats:
+            return self.predict(graph_feats), att, graph_feats
+        else:
+            return self.predict(graph_feats), att

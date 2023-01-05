@@ -36,7 +36,6 @@ class NET(torch.nn.Module):
         # setup network
         self.net = model
         self.optimizer = Adam(model.parameters(), lr=args['lr'])
-
         self.data_loader = None
 
     def forward(self, features):
