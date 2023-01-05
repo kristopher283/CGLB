@@ -36,6 +36,7 @@ class NET(torch.nn.Module):
         self.current_task = -1
         self.buffer_node_ids = []
         self.budget = int(args.dce_args['budget'])
+        self.max_size = int(args.dce_args['max_size'] * args.n_cls * self.budget)
         self.d_CM = args.dce_args['d'] # d for CM sampler of ERGNN
         self.aux_g = None
 
@@ -89,6 +90,22 @@ class NET(torch.nn.Module):
                 g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
                 self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
                 self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+                # TODO: when self.buffer_node_ids is full, start to replace nodes with more class
+                if len(self.buffer_node_ids) > self.max_size:
+                    print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
+                    _ids_per_cls = [torch.nonzero(self.aux_labels == j).squeeze().tolist() for j in range(args.n_cls)]
+                    _node_ids_per_cls = [[self.buffer_node_ids[idx] for idx in ids] for ids in _ids_per_cls]
+                    while len(self.buffer_node_ids) > self.max_size:
+                        largest_cls = max(enumerate(_node_ids_per_cls), key=lambda item: len(item[1]))[0]
+                        _removed = random.choice(_node_ids_per_cls[largest_cls])
+                        _node_ids_per_cls[largest_cls].remove(_removed)
+                        self.buffer_node_ids.remove(_removed)
+
+                # TODO: run it again with the correct size
+                g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
+                self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
+                self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+
                 if args.cls_balance:
                     n_per_cls = [(self.aux_labels == j).sum() for j in range(args.n_cls)]
                     loss_w_ = [1. / max(i, 1) for i in n_per_cls]  # weight to balance the loss of different class
@@ -103,7 +120,8 @@ class NET(torch.nn.Module):
                 loss_aux = self.ce(output[:, offset1:offset2], self.aux_labels, weight=self.aux_loss_w_[offset1: offset2])
             else:
                 loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
-            
+
+            dce_loss = 0
             if prev_model is not None:
                 # # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
                 # _, _, prev_feats = prev_model(self.aux_g, self.aux_features, return_feats=True)
