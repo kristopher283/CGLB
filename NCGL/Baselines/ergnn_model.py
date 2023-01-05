@@ -79,8 +79,9 @@ class NET(torch.nn.Module):
         else:
             loss = self.ce(output[train_ids], labels[train_ids], weight=loss_w_)
 
+        # sample and store ids from current task
+        # store only once for each task
         if t!=self.current_task:
-            # if the incoming task is new
             self.current_task = t
             sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
             old_ids = g.ndata['_ID'].cpu() # '_ID' are the original ids in the original graph before splitting
@@ -286,9 +287,10 @@ class NET(torch.nn.Module):
             loss = self.ce(output_predictions[:, offset1:offset2], output_labels, weight=loss_w_[offset1: offset2])
 
             # sample and store ids from current task
+            # store only once for each task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM, using_half=False)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
                 if t > 0:
