@@ -1,6 +1,12 @@
+METHOD=erlimit
+# METHOD=erreplace
+# METHOD=dce
+# METHOD=sl
+# METHOD=our
+
 CUDA_VISIBLE_DEVICES=2 python train.py \
---dataset Reddit-CL \
---method erlimit  \
+--dataset Products-CL \
+--method $METHOD  \
 --gpu 0 \
 --ILmode classIL \
 --inter-task-edges 'False' \

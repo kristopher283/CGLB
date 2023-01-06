@@ -1,6 +1,8 @@
+METHOD=erlimit
+
 CUDA_VISIBLE_DEVICES=0 python train.py \
 --dataset Arxiv-CL \
---method erlimit  \
+--method $METHOD  \
 --gpu 0 \
 --ILmode classIL \
 --inter-task-edges 'False' \
