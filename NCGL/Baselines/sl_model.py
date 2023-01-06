@@ -9,14 +9,15 @@ K_SAMPLES = 5
 
 
 class NET(torch.nn.Module):
+
     """
-        ER-GNN baseline for NCGL tasks
+    ER-GNN baseline for NCGL tasks
 
-        :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
-        :param task_manager: Mainly serves to store the indices of the output dimensions corresponding to each task
-        :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
+    :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
+    :param task_manager: Mainly serves to store the indices of the output dimensions corresponding to each task
+    :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
 
-        """
+    """
 
     def __init__(self,
                  model,
@@ -182,18 +183,18 @@ class NET(torch.nn.Module):
 
     def observe_task_IL(self, args, g, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
-                        The method for learning the given tasks under the task-IL setting.
+        The method for learning the given tasks under the task-IL setting.
 
-                        :param args: Same as the args in __init__().
-                        :param g: The graph of the current task.
-                        :param features: Node features of the current task.
-                        :param labels: Labels of the nodes in the current task.
-                        :param t: Index of the current task.
-                        :param train_ids: The indices of the nodes participating in the training.
-                        :param ids_per_cls: Indices of the nodes in each class.
-                        :param dataset: The entire dataset.
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class.
+        :param dataset: The entire dataset.
 
-                        """
+        """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         if not isinstance(self.aux_g, list):
             self.aux_g = []
@@ -248,19 +249,19 @@ class NET(torch.nn.Module):
 
     def observe_task_IL_batch(self, args, g, dataloader, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
-                        The method for learning the given tasks under the task-IL setting with mini-batch training.
+        The method for learning the given tasks under the task-IL setting with mini-batch training.
 
-                        :param args: Same as the args in __init__().
-                        :param g: The graph of the current task.
-                        :param dataloader: The data loader for mini-batch training
-                        :param features: Node features of the current task.
-                        :param labels: Labels of the nodes in the current task.
-                        :param t: Index of the current task.
-                        :param train_ids: The indices of the nodes participating in the training.
-                        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                        :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                        """
+        """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         if not isinstance(self.aux_g, list):
             self.aux_g = []
@@ -319,19 +320,19 @@ class NET(torch.nn.Module):
 
     def observe_class_IL_batch(self, args, g, dataloader, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
-                                The method for learning the given tasks under the class-IL setting with mini-batch training.
+        The method for learning the given tasks under the class-IL setting with mini-batch training.
 
-                                :param args: Same as the args in __init__().
-                                :param g: The graph of the current task.
-                                :param dataloader: The data loader for mini-batch training
-                                :param features: Node features of the current task.
-                                :param labels: Labels of the nodes in the current task.
-                                :param t: Index of the current task.
-                                :param train_ids: The indices of the nodes participating in the training.
-                                :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                                :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                                """
+        """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         self.net.train()
         # now compute the grad on the current task

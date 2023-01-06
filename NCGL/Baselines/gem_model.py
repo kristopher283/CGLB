@@ -21,6 +21,7 @@ class NET(nn.Module):
     :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
 
     """
+
     def __init__(self,
                 model,
                 task_manager,
@@ -57,18 +58,18 @@ class NET(nn.Module):
 
     def observe(self, args, g, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                The method for learning the given tasks under the class-IL setting.
+        The method for learning the given tasks under the class-IL setting.
 
-                :param args: Same as the args in __init__().
-                :param g: The graph of the current task.
-                :param features: Node features of the current task.
-                :param labels: Labels of the nodes in the current task.
-                :param t: Index of the current task.
-                :param train_ids: The indices of the nodes participating in the training.
-                :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
-                :param dataset: The entire dataset (not in use in the current baseline).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
+        :param dataset: The entire dataset (not in use in the current baseline).
 
-                """
+        """
         # update memory
         if t != self.current_task:
             self.observed_tasks.append(t)
@@ -138,18 +139,18 @@ class NET(nn.Module):
 
     def observe_task_IL(self, args, g, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                        The method for learning the given tasks under the task-IL setting.
+        The method for learning the given tasks under the task-IL setting.
 
-                        :param args: Same as the args in __init__().
-                        :param g: The graph of the current task.
-                        :param features: Node features of the current task.
-                        :param labels: Labels of the nodes in the current task.
-                        :param t: Index of the current task.
-                        :param train_ids: The indices of the nodes participating in the training.
-                        :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
-                        :param dataset: The entire dataset (not in use in the current baseline).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
+        :param dataset: The entire dataset (not in use in the current baseline).
 
-                        """
+        """
         # update memory
         if t != self.current_task:
             self.observed_tasks.append(t)
@@ -217,19 +218,19 @@ class NET(nn.Module):
 
     def observe_task_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                        The method for learning the given tasks under the task-IL setting with mini-batch training.
+        The method for learning the given tasks under the task-IL setting with mini-batch training.
 
-                        :param args: Same as the args in __init__().
-                        :param g: The graph of the current task.
-                        :param dataloader: The data loader for mini-batch training
-                        :param features: Node features of the current task.
-                        :param labels: Labels of the nodes in the current task.
-                        :param t: Index of the current task.
-                        :param train_ids: The indices of the nodes participating in the training.
-                        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                        :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                        """
+        """
         # Update ring buffer storing examples from current task
         if t >= len(self.memory_data):
             tmask = random.sample(train_ids, k=min(self.n_memories, len(train_ids)))  # train_ids[0:self.n_memories]
@@ -290,7 +291,6 @@ class NET(nn.Module):
             blocks = [b.to(device='cuda:{}'.format(args.gpu)) for b in blocks]
             input_features = blocks[0].srcdata['feat']
             output_labels = blocks[-1].dstdata['label'].squeeze()
-            #output_labels = output_labels - offset1
             if args.cls_balance:
                 n_per_cls = [(output_labels == j).sum() for j in range(args.n_cls)]
                 loss_w_ = [1. / max(i, 1) for i in n_per_cls]  # weight to balance the loss of different class
@@ -329,19 +329,19 @@ class NET(nn.Module):
 
     def observe_class_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                                The method for learning the given tasks under the class-IL setting with mini-batch training.
+        The method for learning the given tasks under the class-IL setting with mini-batch training.
 
-                                :param args: Same as the args in __init__().
-                                :param g: The graph of the current task.
-                                :param dataloader: The data loader for mini-batch training
-                                :param features: Node features of the current task.
-                                :param labels: Labels of the nodes in the current task.
-                                :param t: Index of the current task.
-                                :param train_ids: The indices of the nodes participating in the training.
-                                :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                                :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                                """
+        """
         # update memory
         if t != self.current_task:
             self.observed_tasks.append(t)
