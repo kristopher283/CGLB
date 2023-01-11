@@ -91,10 +91,11 @@ class GCN(nn.Module):
         logits, e = self.gat_layers[-1](g, h)
         self.second_last_h = logits if len(self.gat_layers) == 1 else h
         e_list = e_list + e
+
         if return_feats:
             return logits, e_list, self.second_last_h
-        else:
-            return logits, e_list
+
+        return logits, e_list
 
     def forward_batch(self, blocks, features, return_feats=False):
         e_list = []
@@ -107,10 +108,11 @@ class GCN(nn.Module):
         logits, e = self.gat_layers[-1].forward_batch(blocks[-1], h)
         self.second_last_h = logits if len(self.gat_layers) == 1 else h
         e_list = e_list + e
+
         if return_feats:
             return logits, e_list, self.second_last_h
-        else:
-            return logits, e_list
+
+        return logits, e_list
 
 
     def reset_params(self):
