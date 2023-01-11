@@ -11,8 +11,8 @@ class MF_sampler(nn.Module):
     def forward(self, ids_per_cls_train, budget, feats, reps, d):
         if self.plus:
             return self.sampling(ids_per_cls_train, budget, reps)
-        else:
-            return self.sampling(ids_per_cls_train, budget, feats)
+
+        return self.sampling(ids_per_cls_train, budget, feats)
 
     def sampling(self,ids_per_cls_train, budget, vecs):
         centers = [vecs[ids].mean(0) for ids in ids_per_cls_train]
@@ -30,18 +30,14 @@ class CM_sampler(nn.Module):
         super().__init__()
         self.plus = plus
 
-    def forward(self, ids_per_cls_train, budget, feats, reps, d, using_half=True):
+    def forward(self, ids_per_cls_train, budget, feats, reps, d):
         if self.plus:
-            return self.sampling(ids_per_cls_train, budget, reps, d, using_half=using_half)
-        else:
-            return self.sampling(ids_per_cls_train, budget, feats, d, using_half=using_half)
+            return self.sampling(ids_per_cls_train, budget, reps, d)
 
-    def sampling(self,ids_per_cls_train, budget, vecs, d, using_half=True):
+        return self.sampling(ids_per_cls_train, budget, feats, d)
+
+    def sampling(self,ids_per_cls_train, budget, vecs, d):
         budget_dist_compute = 1000
-        '''
-        if using_half:
-            vecs = vecs.half()
-        '''
         vecs = vecs.half()
         ids_selected = []
         for i,ids in enumerate(ids_per_cls_train):
@@ -66,6 +62,7 @@ class CM_sampler(nn.Module):
             rank = n_selected.sort()[1].tolist()
             current_ids_selected = rank[:budget]
             ids_selected.extend([ids_per_cls_train[i][j] for j in current_ids_selected])
+
         return ids_selected
 
 class random_sampler(nn.Module):
@@ -77,8 +74,8 @@ class random_sampler(nn.Module):
     def forward(self, ids_per_cls_train, budget, feats, reps, d):
         if self.plus:
             return self.sampling(ids_per_cls_train, budget, reps, d)
-        else:
-            return self.sampling(ids_per_cls_train, budget, feats, d)
+        
+        return self.sampling(ids_per_cls_train, budget, feats, d)
 
     def sampling(self,ids_per_cls_train, budget, vecs, d):
         ids_selected = []

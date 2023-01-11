@@ -5,6 +5,7 @@ import pickle
 
 samplers = {'CM': CM_sampler(plus=False), 'CM_plus':CM_sampler(plus=True), 'MF':MF_sampler(plus=False), 'MF_plus':MF_sampler(plus=True),'random':random_sampler(plus=False)}
 class NET(torch.nn.Module):
+
     """
     ER-GNN baseline for NCGL tasks
 
@@ -83,7 +84,7 @@ class NET(torch.nn.Module):
         # store only once for each task
         if t!=self.current_task:
             self.current_task = t
-            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
+            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h.detach(), self.d_CM)
             old_ids = g.ndata['_ID'].cpu() # '_ID' are the original ids in the original graph before splitting
             self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
             if t>0:
@@ -150,7 +151,7 @@ class NET(torch.nn.Module):
 
         if t!=self.current_task:
             self.current_task = t
-            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
+            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h.detach(), self.d_CM)
             old_ids = g.ndata['_ID'].cpu()
             self.buffer_node_ids[t] = old_ids[sampled_ids].tolist()
             g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids[t])
@@ -222,7 +223,7 @@ class NET(torch.nn.Module):
             # sample and store ids from current task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h.detach(), self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids[t] = old_ids[sampled_ids].tolist()
                 ag, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids[t])
@@ -265,9 +266,6 @@ class NET(torch.nn.Module):
         self.net.train()
         # now compute the grad on the current task
         offset1, offset2 = self.task_manager.get_label_offset(t)
-        clss = []
-        for tid in range(t + 1):
-            clss.extend(args.task_seq[-2+tid])
         for input_nodes, output_nodes, blocks in dataloader:
             n_nodes_current_batch = output_nodes.shape[0]
             buffer_size = len(self.buffer_node_ids)
@@ -290,7 +288,7 @@ class NET(torch.nn.Module):
             # store only once for each task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h.detach(), self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
                 if t > 0:

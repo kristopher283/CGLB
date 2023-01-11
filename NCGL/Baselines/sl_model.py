@@ -48,7 +48,7 @@ class NET(torch.nn.Module):
     def forward(self, features):
         output = self.net(features)
         return output
-    
+
     def observe(self, args, g, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
         The method for learning the given tasks under the class-IL setting.
@@ -62,6 +62,7 @@ class NET(torch.nn.Module):
         :param train_ids: The indices of the nodes participating in the training.
         :param ids_per_cls: Indices of the nodes in each class.
         :param dataset: The entire dataset.
+
         """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         self.net.train()
@@ -89,7 +90,7 @@ class NET(torch.nn.Module):
         # store only once for each task
         if t!=self.current_task:
             self.current_task = t
-            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
+            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h.detach(), self.d_CM)
             old_ids = g.ndata['_ID'].cpu() # '_ID' are the original ids in the original graph before splitting
             self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
             if t>0:
@@ -127,7 +128,6 @@ class NET(torch.nn.Module):
             else:
                 loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
 
-                
             structure_loss = 0
             if prev_model is not None:
                 # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
@@ -222,7 +222,7 @@ class NET(torch.nn.Module):
 
         if t!=self.current_task:
             self.current_task = t
-            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
+            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h.detach(), self.d_CM)
             old_ids = g.ndata['_ID'].cpu()
             self.buffer_node_ids[t] = old_ids[sampled_ids].tolist()
             g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids[t])
@@ -294,7 +294,7 @@ class NET(torch.nn.Module):
             # sample and store ids from current task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h.detach(), self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids[t] = old_ids[sampled_ids].tolist()
                 ag, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids[t])
@@ -337,9 +337,6 @@ class NET(torch.nn.Module):
         self.net.train()
         # now compute the grad on the current task
         offset1, offset2 = self.task_manager.get_label_offset(t)
-        clss = []
-        for tid in range(t + 1):
-            clss.extend(args.task_seq[-2+tid])
         for input_nodes, output_nodes, blocks in dataloader:
             n_nodes_current_batch = output_nodes.shape[0]
             buffer_size = len(self.buffer_node_ids)
@@ -362,7 +359,7 @@ class NET(torch.nn.Module):
             # store only once for each task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h.detach(), self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
                 if t > 0:
@@ -392,6 +389,7 @@ class NET(torch.nn.Module):
                     else:
                         loss_w_ = [1. for i in range(args.n_cls)]
                     self.aux_loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args.gpu))
+
             if t != 0:
                 output, _ = self.net(self.aux_g, self.aux_features)
                 if args.classifier_increase:
@@ -399,7 +397,7 @@ class NET(torch.nn.Module):
                                        weight=self.aux_loss_w_[offset1: offset2])
                 else:
                     loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
-                
+
                 structure_loss = 0
                 if prev_model is not None:
                     # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
