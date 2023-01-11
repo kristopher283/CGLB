@@ -1,4 +1,4 @@
-METHOD=erlimit
+METHOD=ergnn
 # METHOD=erreplace
 # METHOD=dce
 # METHOD=sl

@@ -1,4 +1,8 @@
-METHOD=erlimit
+# METHOD=ergnn
+# METHOD=erreplace
+# METHOD=dce
+# METHOD=sl
+METHOD=our
 
 CUDA_VISIBLE_DEVICES=0 python train.py \
 --dataset CoraFull-CL \

@@ -1,10 +1,10 @@
-# METHOD=erlimit
+# METHOD=ergnn
 # METHOD=erreplace
-METHOD=dce
+# METHOD=dce
 # METHOD=sl
-# METHOD=our
+METHOD=our
 
-CUDA_VISIBLE_DEVICES=1 python train.py \
+CUDA_VISIBLE_DEVICES=2 python train.py \
 --dataset Reddit-CL \
 --method $METHOD  \
 --gpu 0 \
