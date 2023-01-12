@@ -32,6 +32,8 @@ def assign_hyp_param(args, params):
         args['twp_args'] = params
     if args['method'] in joint_alias:
         args['joint_args'] = params
+    if args['method'] == 'ergnn':
+        args['ergnn_args'] = params
 
 
 def str2dict(s):
