@@ -13,12 +13,12 @@ def predict(args, model, bg):
 
 class NET(torch.nn.Module):
     """
-        Bare model baseline for GCGL tasks
+    Bare model baseline for GCGL tasks
 
-        :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
-        :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
+    :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
+    :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
 
-        """
+    """
 
     def __init__(self,
                  model,
@@ -35,14 +35,14 @@ class NET(torch.nn.Module):
 
     def observe(self, data_loader, loss_criterion, task_i, args):
         """
-                The method for learning the given tasks under the task-IL setting with multi-label classification datasets.
+        The method for learning the given tasks under the task-IL setting with multi-label classification datasets.
 
-                :param data_loader: The data loader for mini-batch training.
-                :param loss_criterion: The loss function.
-                :param task_i: Index of the current task.
-                :param args: Same as the args in __init__().
+        :param data_loader: The data loader for mini-batch training.
+        :param loss_criterion: The loss function.
+        :param task_i: Index of the current task.
+        :param args: Same as the args in __init__().
 
-                """
+        """
 
         self.net.train()
         train_meter = Meter()
