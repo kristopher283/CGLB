@@ -87,6 +87,7 @@ class GCNPredictor(nn.Module):
                        batchnorm=batchnorm,
                        dropout=dropout)
         gnn_out_feats = self.gnn.hidden_feats[-1]
+        self.raw_readout = WeightedSumAndMax(in_feats)
         self.readout = WeightedSumAndMax(gnn_out_feats)
         self.predict = MLPPredictor(2 * gnn_out_feats, predictor_hidden_feats,
                                     n_tasks, predictor_dropout)
@@ -108,8 +109,9 @@ class GCNPredictor(nn.Module):
             * B for the number of graphs in the batch
         """
         node_feats, att = self.gnn(bg, feats)
-        graph_feats = self.readout(bg, node_feats)
+        raw_graph_feats = self.raw_readout(bg, feats)
+        hidden_graph_feats = self.readout(bg, node_feats)
         if return_feats:
-            return self.predict(graph_feats), att, graph_feats
-        else:
-            return self.predict(graph_feats), att
+            return self.predict(hidden_graph_feats), att, raw_graph_feats, hidden_graph_feats
+
+        return self.predict(hidden_graph_feats), att
