@@ -8,7 +8,7 @@ from dgllife.utils import EarlyStopping, Meter
 from torch.nn import BCEWithLogitsLoss
 from torch.utils.data import DataLoader
 import copy
-from utils import collate_molgraphs, load_model, GraphLevelDataset
+from utils import collate_molgraphs, load_model, GraphLevelDataset, set_random_seed
 import os
 import errno
 import pickle
@@ -315,7 +315,7 @@ def pipeline_multi_label(args, valid=False):
     '''
     epochs = args['num_epochs'] if valid else 0
     torch.cuda.set_device(args['gpu'])
-    # set_random_seed(args['random_seed'])
+    set_random_seed(args['random_seed'])
     G = GraphLevelDataset(args)
     dataset, train_set, val_set, test_set = G.dataset, G.train_set, G.val_set, G.test_set
     args['n_cls'] = dataset.labels.shape[1]
