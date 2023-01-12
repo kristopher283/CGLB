@@ -326,13 +326,17 @@ class NET(torch.nn.Module):
                 if prev_model is not None:
                     # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
                     prev_output, edge_list, _ = prev_model(self.aux_g, self.aux_features, return_feats=True)
-                    # adj_matrix = self.aux_g.adj()
+                    # # adj_matrix = self.aux_g.adj()
+                    # src, dst = self.aux_g.edges()
+                    # adj_matrix = torch.zeros(self.aux_g.num_src_nodes(), self.aux_g.num_dst_nodes(), device='cuda:{}'.format(args.gpu))
+                    # adj_matrix[src, dst] = self.aux_g.edata['_ID'].squeeze(-1).float()
+
                     feat_src, _ = expand_as_pair(self.aux_features)
                     self.aux_g.srcdata['h'] = feat_src
                     self.aux_g.apply_edges(lambda edges: {'se': torch.sum((torch.mul(edges.src['h'], torch.tanh(edges.dst['h']))), 1)})
                     soft_edges = self.aux_g.edata.pop('se')
-                    rand_k_node_samples = random.sample(range(0, self.aux_g.num_nodes()), K_SAMPLES)
 
+                    rand_k_node_samples = random.sample(range(0, self.aux_g.num_nodes()), K_SAMPLES)
                     for node_idx in rand_k_node_samples:
                         # For the old (previous task) model.
                         # Get the different in term of features between the target node and its neighbor nodes. (This aims to extract the
