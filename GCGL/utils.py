@@ -217,7 +217,7 @@ def collate_minigs(data):
     return masks, bg, labels, masks
 
 def load_model(args):
-    if args['method'] == 'twp' or args['method'] == 'dce':
+    if args['method'] in ['twp', 'dce', 'ergnn', 'erreplace']:
         from Backbones.gcn_predictor import GCNPredictor
         model = GCNPredictor(in_feats=args['d_data'],
                              hidden_feats=args['gcn_hidden_feats'],

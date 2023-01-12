@@ -28,6 +28,10 @@ def assign_hyp_param(args, params):
         args.joint_args = params
     if args.method == 'ergnn':
         args.ergnn_args = params
+    if args.method == 'erreplace':
+        args.erreplace_args = params
+    if args.method == 'our':
+        args.our_args = params
 
 
 def str2dict(s):

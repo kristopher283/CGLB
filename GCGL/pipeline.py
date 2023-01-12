@@ -32,6 +32,10 @@ def assign_hyp_param(args, params):
         args['twp_args'] = params
     if args['method'] in joint_alias:
         args['joint_args'] = params
+    if args['method'] == 'ergnn':
+        args['ergnn_args'] = params
+    if args['method'] == 'erreplace':
+        args['erreplace_args'] = params
 
 
 def str2dict(s):
@@ -463,8 +467,11 @@ def pipeline_multi_class(args, valid=False):
             # Train
             if args['method'] == 'lwf':
                 train_func(train_loader, loss_criterion, tid, args, prev_model)
+            elif args['method'] in ['ergnn', 'erreplace']:
+                train_func(train_loader, loss_criterion, tid, args, last_epoch=epoch == epochs - 1)
             else:
                 train_func(train_loader, loss_criterion, tid, args)
+            
 
         if not valid:
             # if testing, load the trained model

@@ -77,18 +77,18 @@ class NET(torch.nn.Module):
 
     def observe_task_IL(self, args, g, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                The method for learning the given tasks under the task-IL setting.
+        The method for learning the given tasks under the task-IL setting.
 
-                :param args: Same as the args in __init__().
-                :param g: The graph of the current task.
-                :param features: Node features of the current task.
-                :param labels: Labels of the nodes in the current task.
-                :param t: Index of the current task.
-                :param train_ids: The indices of the nodes participating in the training.
-                :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
-                :param dataset: The entire dataset (not in use in the current baseline).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
+        :param dataset: The entire dataset (not in use in the current baseline).
 
-                """
+        """
         self.net.train()
         self.net.zero_grad()
         offset1, offset2 = self.task_manager.get_label_offset(t - 1)[1], self.task_manager.get_label_offset(t)[1]
@@ -109,19 +109,19 @@ class NET(torch.nn.Module):
 
     def observe_task_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                The method for learning the given tasks under the task-IL setting with mini-batch training.
+        The method for learning the given tasks under the task-IL setting with mini-batch training.
 
-                :param args: Same as the args in __init__().
-                :param g: The graph of the current task.
-                :param dataloader: The data loader for mini-batch training
-                :param features: Node features of the current task.
-                :param labels: Labels of the nodes in the current task.
-                :param t: Index of the current task.
-                :param train_ids: The indices of the nodes participating in the training.
-                :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                """
+        """
         # now compute the grad on the current task
         offset1, offset2 = self.task_manager.get_label_offset(t - 1)[1], self.task_manager.get_label_offset(t)[1]
         for input_nodes, output_nodes, blocks in dataloader:
@@ -144,19 +144,19 @@ class NET(torch.nn.Module):
 
     def observe_class_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                        The method for learning the given tasks under the class-IL setting with mini-batch training.
+        The method for learning the given tasks under the class-IL setting with mini-batch training.
 
-                        :param args: Same as the args in __init__().
-                        :param g: The graph of the current task.
-                        :param dataloader: The data loader for mini-batch training.
-                        :param features: Node features of the current task.
-                        :param labels: Labels of the nodes in the current task.
-                        :param t: Index of the current task.
-                        :param train_ids: The indices of the nodes participating in the training.
-                        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                        :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                        """
+        """
         offset1, offset2 = self.task_manager.get_label_offset(t)
         for input_nodes, output_nodes, blocks in dataloader:
             self.net.zero_grad()

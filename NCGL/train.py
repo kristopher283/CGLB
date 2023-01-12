@@ -19,7 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=5e-4, help="weight decay")
     parser.add_argument('--backbone', type=str, default='GCN', help="backbone GNN, [GAT, GCN, GIN]")
     parser.add_argument('--method', type=str,
-                        choices=["bare", 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain', 'ergnn', 'joint', 'Joint', 'dce', 'sl'], default="gem",
+                        choices=["bare", 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain', 'ergnn', 'joint', 'Joint', 'dce', 'sl', 'erreplace', 'our'], default="gem",
                         help="baseline continual learning method")
     # parameters for continual learning settings
     parser.add_argument('--share-labels', type=strtobool, default=False,
@@ -44,11 +44,15 @@ if __name__ == '__main__':
                                  'attn_drop': .6, 'negative_slope': 0.2, 'residual': False})
     parser.add_argument('--GCN-args', default={'h_dims': [256], 'dropout': 0.0, 'batch_norm': False})
     parser.add_argument('--GIN-args', default={'h_dims': [256], 'dropout': 0.0})
-    parser.add_argument('--ergnn_args', type=str2dict, default={'budget': [100,1000], 'd': [0.5], 'sampler': ['CM']},
+    parser.add_argument('--ergnn_args', type=str2dict, default={'budget': [10, 100, 1000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM, MF', 'random']},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
-    parser.add_argument('--dce_args', type=str2dict, default={'budget': [100,1000], 'd': [0.5], 'sampler': ['CM']},
+    parser.add_argument('--erreplace_args', type=str2dict, default={'budget': [20, 200, 2000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM', 'MF', 'random'], 'max_size': [0.5]},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
-    parser.add_argument('--sl_args', type=str2dict, default={'budget': [100,1000], 'd': [0.5], 'sampler': ['CM']},
+    parser.add_argument('--dce_args', type=str2dict, default={'budget': [20, 200, 2000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM', 'MF', 'random'], 'max_size': [0.5]},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--sl_args', type=str2dict, default={'budget': [20, 200, 2000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM', 'MF', 'random'], 'max_size': [0.5]},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--our_args', type=str2dict, default={'budget': [20, 200, 2000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM', 'MF', 'random'], 'max_size': [0.5]},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
     parser.add_argument('--lwf_args', type=str2dict, default={'lambda_dist': [1.0, 10.0], 'T': [2.0, 20.0]})
     parser.add_argument('--twp_args', type=str2dict, default={'lambda_l': 10000., 'lambda_t': 10000., 'beta': 0.01})
@@ -79,7 +83,7 @@ if __name__ == '__main__':
 
     method_args = {'ergnn': args.ergnn_args, 'lwf': args.lwf_args, 'twp': args.twp_args, 'ewc': args.ewc_args,
                    'bare': args.bare_args, 'gem': args.gem_args, 'mas': args.mas_args, 'joint': args.joint_args,
-                   'dce': args.dce_args, 'sl': args.sl_args}
+                   'dce': args.dce_args, 'sl': args.sl_args, 'erreplace': args.erreplace_args, 'our': args.our_args}
     backbone_args = {'GCN': args.GCN_args, 'GAT': args.GAT_args, 'GIN': args.GIN_args}
     hyp_param_list = compose_hyper_params(method_args[args.method])
     AP_best, name_best = 0, None
@@ -164,6 +168,7 @@ if __name__ == '__main__':
     subfolder_c = name_best.split(config_name)[-2]
     if args.perform_testing:
         print('----------Now in testing--------')
+        print(f'best params is {hyp_best_str}, best AP is {AP_best}')
         acc_matrices = []
         for ite in range(args.repeats):
             args.current_model_save_path = [name_best, ite]

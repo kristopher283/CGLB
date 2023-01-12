@@ -29,7 +29,7 @@ class NET(torch.nn.Module):
 
         # setup network
         self.net = model
-        self.sampler = samplers[args.sl_args['sampler']]
+        self.sampler = samplers[args.our_args['sampler']]
 
         # setup optimizer
         self.opt = torch.optim.Adam(self.net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -40,9 +40,9 @@ class NET(torch.nn.Module):
         # setup memories
         self.current_task = -1
         self.buffer_node_ids = []
-        self.budget = int(args.sl_args['budget'])
-        self.max_size = int(args.sl_args['max_size'] * args.n_cls * self.budget)
-        self.d_CM = args.sl_args['d'] # d for CM sampler of ERGNN
+        self.budget = int(args.our_args['budget'])
+        self.max_size = int(args.our_args['max_size'] * args.n_cls * self.budget)
+        self.d_CM = args.our_args['d'] # d for CM sampler of ERGNN
         self.aux_g = None
 
     def forward(self, features):
@@ -128,6 +128,17 @@ class NET(torch.nn.Module):
             else:
                 loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
 
+            dce_loss = 0
+            if prev_model is not None:
+                # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
+                prev_output, _ = prev_model(self.aux_g, self.aux_features)
+                for oldt in range(t):
+                    o1, o2 = self.task_manager.get_label_offset(oldt)
+                    dist_logits = output[:, o1:o2]
+                    dist_target = prev_output[:, o1:o2]
+                    step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
+                    dce_loss += step_dce_loss
+                
             structure_loss = 0
             if prev_model is not None:
                 # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
@@ -176,7 +187,7 @@ class NET(torch.nn.Module):
                                                                         torch.ones(1).to('cuda:{}'.format(args.gpu)))
                         structure_loss += step_structure_loss
 
-            loss = beta * loss + (1 - beta) * (loss_aux + structure_loss)
+            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
 
         loss.backward()
         self.opt.step()
@@ -397,22 +408,29 @@ class NET(torch.nn.Module):
                                        weight=self.aux_loss_w_[offset1: offset2])
                 else:
                     loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
+                
+                dce_loss = 0
+                if prev_model is not None:
+                    # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
+                    prev_output, _ = prev_model(self.aux_g, self.aux_features)
+                    for oldt in range(t):
+                        o1, o2 = self.task_manager.get_label_offset(oldt)
+                        dist_logits = output[:, o1:o2]
+                        dist_target = prev_output[:, o1:o2]
+                        step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
+                        dce_loss += step_dce_loss
 
                 structure_loss = 0
                 if prev_model is not None:
                     # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
-                    prev_output, edge_list, _ = prev_model(self.aux_g, self.aux_features, return_feats=True)
-                    # # adj_matrix = self.aux_g.adj()
-                    # src, dst = self.aux_g.edges()
-                    # adj_matrix = torch.zeros(self.aux_g.num_src_nodes(), self.aux_g.num_dst_nodes(), device='cuda:{}'.format(args.gpu))
-                    # adj_matrix[src, dst] = self.aux_g.edata['_ID'].squeeze(-1).float()
-
+                    prev_output, _ = prev_model(self.aux_g, self.aux_features)
+                    # adj_matrix = self.aux_g.adj()
                     feat_src, _ = expand_as_pair(self.aux_features)
                     self.aux_g.srcdata['h'] = feat_src
                     self.aux_g.apply_edges(lambda edges: {'se': torch.sum((torch.mul(edges.src['h'], torch.tanh(edges.dst['h']))), 1)})
                     soft_edges = self.aux_g.edata.pop('se')
-
                     rand_k_node_samples = random.sample(range(0, self.aux_g.num_nodes()), K_SAMPLES)
+
                     for node_idx in rand_k_node_samples:
                         # For the old (previous task) model.
                         # Get the different in term of features between the target node and its neighbor nodes. (This aims to extract the
@@ -450,7 +468,7 @@ class NET(torch.nn.Module):
                                                                            torch.ones(1).to('cuda:{}'.format(args.gpu)))
                             structure_loss += step_structure_loss
 
-                loss = beta * loss + (1 - beta) * (loss_aux + structure_loss)
+                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
 
             loss.backward()
             self.opt.step()

@@ -18,13 +18,14 @@ def kaiming_normal_init(m):
 
 class NET(torch.nn.Module):
     """
-        A template for implementing new methods for NCGL tasks. The major part for users to care about is the implementation of the function ``observe()``, which is how the implemented NCGL method learns each new task.
+    A template for implementing new methods for NCGL tasks. The major part for users to care about is the implementation of the function ``observe()``, which is how the implemented NCGL method learns each new task.
 
-        :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
-        :param task_manager: Mainly serves to store the indices of the output dimensions corresponding to each task
-        :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
+    :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
+    :param task_manager: Mainly serves to store the indices of the output dimensions corresponding to each task
+    :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
 
-        """
+    """
+
     def __init__(self,
                  model,
                  task_manager,
@@ -64,20 +65,20 @@ class NET(torch.nn.Module):
                 
     def observe(self, args, g, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
-                The method for learning the given tasks. Each time a new task is presented, this function will be called to learn the task. Therefore, how the model adapts to new tasks and prevent forgetting on old tasks are all implemented in this function.
-                More detailed comments accompanying the code can be found in the source code of this template in our GitHub repository.
+        The method for learning the given tasks. Each time a new task is presented, this function will be called to learn the task. Therefore, how the model adapts to new tasks and prevent forgetting on old tasks are all implemented in this function.
+        More detailed comments accompanying the code can be found in the source code of this template in our GitHub repository.
 
-                :param args: Same as the args in __init__().
-                :param g: The graph of the current task.
-                :param features: Node features of the current task.
-                :param labels: Labels of the nodes in the current task.
-                :param t: Index of the current task.
-                :param prev_model: The model obtained after learning the previous task.
-                :param train_ids: The indices of the nodes participating in the training.
-                :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
-                :param dataset: The entire dataset (not in use in the current baseline).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param prev_model: The model obtained after learning the previous task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (not in use in the current baseline).
+        :param dataset: The entire dataset (not in use in the current baseline).
 
-                """
+        """
 
         # Always set the model in the training mode, since this function will not be called during testing
         self.net.train()

@@ -5,14 +5,15 @@ import pickle
 
 samplers = {'CM': CM_sampler(plus=False), 'CM_plus':CM_sampler(plus=True), 'MF':MF_sampler(plus=False), 'MF_plus':MF_sampler(plus=True),'random':random_sampler(plus=False)}
 class NET(torch.nn.Module):
+
     """
-        ER-GNN baseline for NCGL tasks
+    ER-GNN baseline for NCGL tasks
 
-        :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
-        :param task_manager: Mainly serves to store the indices of the output dimensions corresponding to each task
-        :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
+    :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
+    :param task_manager: Mainly serves to store the indices of the output dimensions corresponding to each task
+    :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
 
-        """
+    """
 
     def __init__(self,
                  model,
@@ -42,21 +43,21 @@ class NET(torch.nn.Module):
     def forward(self, features):
         output = self.net(features)
         return output
-    
+
     def observe(self, args, g, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                The method for learning the given tasks under the class-IL setting.
+        The method for learning the given tasks under the class-IL setting.
 
-                :param args: Same as the args in __init__().
-                :param g: The graph of the current task.
-                :param features: Node features of the current task.
-                :param labels: Labels of the nodes in the current task.
-                :param t: Index of the current task.
-                :param train_ids: The indices of the nodes participating in the training.
-                :param ids_per_cls: Indices of the nodes in each class.
-                :param dataset: The entire dataset.
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class.
+        :param dataset: The entire dataset.
 
-                """
+        """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         self.net.train()
         n_nodes = len(train_ids)
@@ -79,10 +80,11 @@ class NET(torch.nn.Module):
         else:
             loss = self.ce(output[train_ids], labels[train_ids], weight=loss_w_)
 
+        # sample and store ids from current task
+        # store only once for each task
         if t!=self.current_task:
-            # if the incoming task is new
             self.current_task = t
-            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
+            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h.detach(), self.d_CM)
             old_ids = g.ndata['_ID'].cpu() # '_ID' are the original ids in the original graph before splitting
             self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
             if t>0:
@@ -110,18 +112,18 @@ class NET(torch.nn.Module):
 
     def observe_task_IL(self, args, g, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                        The method for learning the given tasks under the task-IL setting.
+        The method for learning the given tasks under the task-IL setting.
 
-                        :param args: Same as the args in __init__().
-                        :param g: The graph of the current task.
-                        :param features: Node features of the current task.
-                        :param labels: Labels of the nodes in the current task.
-                        :param t: Index of the current task.
-                        :param train_ids: The indices of the nodes participating in the training.
-                        :param ids_per_cls: Indices of the nodes in each class.
-                        :param dataset: The entire dataset.
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class.
+        :param dataset: The entire dataset.
 
-                        """
+        """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         if not isinstance(self.aux_g, list):
             self.aux_g = []
@@ -149,7 +151,7 @@ class NET(torch.nn.Module):
 
         if t!=self.current_task:
             self.current_task = t
-            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h, self.d_CM)
+            sampled_ids = self.sampler(ids_per_cls_train, self.budget, features, self.net.second_last_h.detach(), self.d_CM)
             old_ids = g.ndata['_ID'].cpu()
             self.buffer_node_ids[t] = old_ids[sampled_ids].tolist()
             g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids[t])
@@ -176,19 +178,19 @@ class NET(torch.nn.Module):
 
     def observe_task_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                        The method for learning the given tasks under the task-IL setting with mini-batch training.
+        The method for learning the given tasks under the task-IL setting with mini-batch training.
 
-                        :param args: Same as the args in __init__().
-                        :param g: The graph of the current task.
-                        :param dataloader: The data loader for mini-batch training
-                        :param features: Node features of the current task.
-                        :param labels: Labels of the nodes in the current task.
-                        :param t: Index of the current task.
-                        :param train_ids: The indices of the nodes participating in the training.
-                        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                        :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                        """
+        """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         if not isinstance(self.aux_g, list):
             self.aux_g = []
@@ -221,7 +223,7 @@ class NET(torch.nn.Module):
             # sample and store ids from current task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h.detach(), self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids[t] = old_ids[sampled_ids].tolist()
                 ag, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids[t])
@@ -247,26 +249,23 @@ class NET(torch.nn.Module):
 
     def observe_class_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
         """
-                                The method for learning the given tasks under the class-IL setting with mini-batch training.
+        The method for learning the given tasks under the class-IL setting with mini-batch training.
 
-                                :param args: Same as the args in __init__().
-                                :param g: The graph of the current task.
-                                :param dataloader: The data loader for mini-batch training
-                                :param features: Node features of the current task.
-                                :param labels: Labels of the nodes in the current task.
-                                :param t: Index of the current task.
-                                :param train_ids: The indices of the nodes participating in the training.
-                                :param ids_per_cls: Indices of the nodes in each class (currently not in use).
-                                :param dataset: The entire dataset (currently not in use).
+        :param args: Same as the args in __init__().
+        :param g: The graph of the current task.
+        :param dataloader: The data loader for mini-batch training
+        :param features: Node features of the current task.
+        :param labels: Labels of the nodes in the current task.
+        :param t: Index of the current task.
+        :param train_ids: The indices of the nodes participating in the training.
+        :param ids_per_cls: Indices of the nodes in each class (currently not in use).
+        :param dataset: The entire dataset (currently not in use).
 
-                                """
+        """
         ids_per_cls_train = [list(set(ids).intersection(set(train_ids))) for ids in ids_per_cls]
         self.net.train()
         # now compute the grad on the current task
         offset1, offset2 = self.task_manager.get_label_offset(t)
-        clss = []
-        for tid in range(t + 1):
-            clss.extend(args.task_seq[-2+tid])
         for input_nodes, output_nodes, blocks in dataloader:
             n_nodes_current_batch = output_nodes.shape[0]
             buffer_size = len(self.buffer_node_ids)
@@ -286,9 +285,10 @@ class NET(torch.nn.Module):
             loss = self.ce(output_predictions[:, offset1:offset2], output_labels, weight=loss_w_[offset1: offset2])
 
             # sample and store ids from current task
+            # store only once for each task
             if t != self.current_task:
                 self.current_task = t
-                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h, self.d_CM, using_half=False)
+                sampled_ids = self.sampler(ids_per_cls_train, self.budget, features.to(device='cuda:{}'.format(args.gpu)), self.net.second_last_h.detach(), self.d_CM)
                 old_ids = g.ndata['_ID'].cpu()
                 self.buffer_node_ids.extend(old_ids[sampled_ids].tolist())
                 if t > 0:
@@ -312,6 +312,3 @@ class NET(torch.nn.Module):
                 loss = beta * loss + (1 - beta) * loss_aux
             loss.backward()
             self.opt.step()
-
-
-

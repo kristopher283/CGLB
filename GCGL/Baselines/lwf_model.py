@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
-from dgllife.utils import EarlyStopping, Meter
+from dgllife.utils import Meter
 import numpy as np
 from torch.autograd import Variable
 
@@ -28,12 +28,13 @@ def MultiClassCrossEntropy(logits, labels, T):
 
 class NET(torch.nn.Module):
     """
-            LwF baseline for GCGL tasks
+        LwF baseline for GCGL tasks
 
-            :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
-            :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
+        :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
+        :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
 
-            """
+        """
+
     def __init__(self,
                  model,
                  args):
@@ -47,112 +48,18 @@ class NET(torch.nn.Module):
         logits = predict(args, self.net, bg)
         return logits
 
-    def observe_clsIL(self, data_loader, loss_criterion, task_i, args, prev_model):
-        """
-                                        The method for learning the given tasks under the class-IL setting with multi-class classification datasets.
-
-                                        :param data_loader: The data loader for mini-batch training.
-                                        :param loss_criterion: The loss function.
-                                        :param task_i: Index of the current task.
-                                        :param args: Same as the args in __init__().
-                                        :param prev_model: The model obtained after learning the previous task.
-
-                                        """
-        self.net.train()
-        clss = []
-        for tid in range(task_i + 1):
-            clss.extend(args['tasks'][tid])
-
-        for batch_id, batch_data in enumerate(data_loader[task_i]):
-            clss = args['tasks'][task_i]
-            smiles, bg, labels, masks = batch_data
-            bg = bg.to(f"cuda:{args['gpu']}")
-            labels, masks = labels.cuda(), masks.cuda()
-            logits = predict(args, self.net, bg)
-
-            # class balance
-            n_per_cls = [(labels == j).sum() for j in clss]
-            loss_w_ = [1. / max(i, 1) for i in n_per_cls]
-            loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
-            # labels= labels.long()
-            for i, c in enumerate(clss):
-                labels[labels == c] = i
-
-            # Mask non-existing labels
-            loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
-
-            if task_i > 0:
-                target = prev_model.forward(args, bg)
-                for oldt in range(task_i):
-                    clss = args['tasks'][oldt]
-                    #logits_dist = torch.unsqueeze(logits[:,clss], 0)
-                    #dist_target = torch.unsqueeze(target[:,clss], 0)
-                    logits_dist = logits[:,clss]
-                    dist_target = target[:,clss]
-                    dist_loss = MultiClassCrossEntropy(logits_dist, dist_target, args['lwf_args']['T'])
-                    loss = loss + args['lwf_args']['lambda_dist'] * dist_loss
-
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
-    def observe_tskIL_multicls(self, data_loader, loss_criterion, task_i, args, prev_model):
-        """
-                                The method for learning the given tasks under the task-IL setting with multi-class classification datasets.
-
-                                :param data_loader: The data loader for mini-batch training.
-                                :param loss_criterion: The loss function.
-                                :param task_i: Index of the current task.
-                                :param args: Same as the args in __init__().
-                                :param prev_model: The model obtained after learning the previous task.
-
-                                """
-        self.net.train()
-        #train_meter = Meter()
-
-        for batch_id, batch_data in enumerate(data_loader[task_i]):
-            clss = args['tasks'][task_i]
-            smiles, bg, labels, masks = batch_data
-            bg = bg.to(f"cuda:{args['gpu']}")
-            labels, masks = labels.cuda(), masks.cuda()
-            logits = predict(args, self.net, bg)
-
-            # class balance
-            n_per_cls = [(labels == j).sum() for j in clss]
-            loss_w_ = [1. / max(i, 1) for i in n_per_cls]
-            loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
-            # labels= labels.long()
-            for i, c in enumerate(clss):
-                labels[labels == c] = i
-
-            # Mask non-existing labels
-            loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
-            #loss = loss[:,task_i].mean()
-
-            if task_i > 0:
-                target = prev_model.forward(args, bg)
-                for oldt in range(task_i):
-                    clss = args['tasks'][oldt]
-                    logits_dist = logits[:, clss]
-                    dist_target = target[:, clss]
-                    dist_loss = MultiClassCrossEntropy(logits_dist, dist_target, args['lwf_args']['T'])
-                    loss = loss + args['lwf_args']['lambda_dist'] * dist_loss
-
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
     def observe(self, data_loader, loss_criterion, task_i, args, prev_model):
         """
-                        The method for learning the given tasks under the task-IL setting with multi-label classification datasets.
+                The method for learning the given tasks under the task-IL setting with multi-label classification datasets.
 
-                        :param data_loader: The data loader for mini-batch training.
-                        :param loss_criterion: The loss function.
-                        :param task_i: Index of the current task.
-                        :param args: Same as the args in __init__().
-                        :param prev_model: The model obtained after learning the previous task.
+                :param data_loader: The data loader for mini-batch training.
+                :param loss_criterion: The loss function.
+                :param task_i: Index of the current task.
+                :param args: Same as the args in __init__().
+                :param prev_model: The model obtained after learning the previous task.
 
-                        """
+                """
+
         self.net.train()
         train_meter = Meter()
         for batch_id, batch_data in enumerate(data_loader):
@@ -179,4 +86,95 @@ class NET(torch.nn.Module):
             train_meter.update(logits, labels, masks)
 
         train_score = np.mean(train_meter.compute_metric(args['metric_name']))
-        
+
+    def observe_tskIL_multicls(self, data_loader, loss_criterion, task_i, args, prev_model):
+        """
+        The method for learning the given tasks under the task-IL setting with multi-class classification datasets.
+
+        :param data_loader: The data loader for mini-batch training.
+        :param loss_criterion: The loss function.
+        :param task_i: Index of the current task.
+        :param args: Same as the args in __init__().
+        :param prev_model: The model obtained after learning the previous task.
+
+        """
+        # task Il under multi-class setting
+        self.net.train()
+        clss = args['tasks'][task_i]
+        for batch_id, batch_data in enumerate(data_loader[task_i]):
+            smiles, bg, labels, masks = batch_data
+            bg = bg.to(f"cuda:{args['gpu']}")
+            labels, masks = labels.cuda(), masks.cuda()
+            logits = predict(args, self.net, bg)
+
+            # class balance
+            n_per_cls = [(labels == j).sum() for j in clss]
+            loss_w_ = [1. / max(i, 1) for i in n_per_cls]
+            loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
+            for i, c in enumerate(clss):
+                labels[labels == c] = i
+
+            # Mask non-existing labels
+            loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
+            #loss = loss[:,task_i].mean()
+
+            if task_i > 0:
+                target = prev_model.forward(args, bg)
+                for oldt in range(task_i):
+                    clss = args['tasks'][oldt]
+                    logits_dist = logits[:, clss]
+                    dist_target = target[:, clss]
+                    dist_loss = MultiClassCrossEntropy(logits_dist, dist_target, args['lwf_args']['T'])
+                    loss = loss + args['lwf_args']['lambda_dist'] * dist_loss
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+    def observe_clsIL(self, data_loader, loss_criterion, task_i, args, prev_model):
+        """
+        The method for learning the given tasks under the class-IL setting with multi-class classification datasets.
+
+        :param data_loader: The data loader for mini-batch training.
+        :param loss_criterion: The loss function.
+        :param task_i: Index of the current task.
+        :param args: Same as the args in __init__().
+        :param prev_model: The model obtained after learning the previous task.
+
+        """
+
+        self.net.train()
+        clss = []
+        for tid in range(task_i + 1):
+            clss.extend(args['tasks'][tid])
+
+        for batch_id, batch_data in enumerate(data_loader[task_i]):
+            smiles, bg, labels, masks = batch_data
+            bg = bg.to(f"cuda:{args['gpu']}")
+            labels, masks = labels.cuda(), masks.cuda()
+            logits = predict(args, self.net, bg)
+
+            # class balance
+            n_per_cls = [(labels == j).sum() for j in clss]
+            loss_w_ = [1. / max(i, 1) for i in n_per_cls]
+            loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
+            for i, c in enumerate(clss):
+                labels[labels == c] = i
+
+            # Mask non-existing labels
+            loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
+
+            if task_i > 0:
+                target = prev_model.forward(args, bg)
+                for oldt in range(task_i):
+                    clss = args['tasks'][oldt]
+                    #logits_dist = torch.unsqueeze(logits[:,clss], 0)
+                    #dist_target = torch.unsqueeze(target[:,clss], 0)
+                    logits_dist = logits[:,clss]
+                    dist_target = target[:,clss]
+                    dist_loss = MultiClassCrossEntropy(logits_dist, dist_target, args['lwf_args']['T'])
+                    loss = loss + args['lwf_args']['lambda_dist'] * dist_loss
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
