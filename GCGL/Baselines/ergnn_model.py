@@ -122,7 +122,7 @@ class NET(torch.nn.Module):
             loss.backward()
             self.optimizer.step()
 
-    def observe_clsIL(self, data_loader, loss_criterion, task_i, args):
+    def observe_clsIL(self, data_loader, loss_criterion, task_i, args, last_epoch=False):
         """
         The method for learning the given tasks under the class-IL setting with multi-class classification datasets.
 
@@ -180,45 +180,46 @@ class NET(torch.nn.Module):
             loss.backward()
             self.optimizer.step()
 
-        # prepare the graph features for the replay
-        graphs_per_cls = {}
-        raw_feats_per_cls = {}
-        hidden_feats_per_cls = {}
-        with torch.no_grad():
-            for batch_id, batch_data in enumerate(data_loader[task_i]):
-                smiles, bg, labels, masks = batch_data
-                bg = bg.to(f"cuda:{args['gpu']}")
-                labels, masks = labels.cuda(), masks.cuda()
-                # TODO: verify if we need to pool it to get the graph feature
-                raw_feats, hidden_feats = predict_feats(args, self.net, bg)
-                bg = dgl.unbatch(bg)
+        if last_epoch:
+            # prepare the graph features for the replay
+            graphs_per_cls = {}
+            raw_feats_per_cls = {}
+            hidden_feats_per_cls = {}
+            with torch.no_grad():
+                for batch_id, batch_data in enumerate(data_loader[task_i]):
+                    smiles, bg, labels, masks = batch_data
+                    bg = bg.to(f"cuda:{args['gpu']}")
+                    labels, masks = labels.cuda(), masks.cuda()
+                    # TODO: verify if we need to pool it to get the graph feature
+                    raw_feats, hidden_feats = predict_feats(args, self.net, bg)
+                    bg = dgl.unbatch(bg)
 
-                for cls in args['tasks'][task_i]:
-                    ids = torch.nonzero(labels == cls).squeeze().tolist()
-                    for idx in ids:
-                        smile = smiles[idx]
-                        g = bg[idx]
-                        label = labels[idx]
-                        mask = masks[idx]
+                    for cls in args['tasks'][task_i]:
+                        ids = torch.nonzero(labels == cls).squeeze().tolist()
+                        for idx in ids:
+                            smile = smiles[idx]
+                            g = bg[idx]
+                            label = labels[idx]
+                            mask = masks[idx]
 
-                        graphs_per_cls[cls] = graphs_per_cls.get(cls, [])
-                        graphs_per_cls[cls].append([smile, g, label, mask])
+                            graphs_per_cls[cls] = graphs_per_cls.get(cls, [])
+                            graphs_per_cls[cls].append([smile, g, label, mask])
 
-                        raw_feats_per_cls[cls] = raw_feats_per_cls.get(cls , [])
-                        raw_feats_per_cls[cls].append(raw_feats[idx])
+                            raw_feats_per_cls[cls] = raw_feats_per_cls.get(cls , [])
+                            raw_feats_per_cls[cls].append(raw_feats[idx])
 
-                        hidden_feats_per_cls[cls] = hidden_feats_per_cls.get(cls , [])
-                        hidden_feats_per_cls[cls].append(hidden_feats[idx])
-        
-        for cls in args['tasks'][task_i]:
-            raw_feats_per_cls[cls] = torch.stack(raw_feats_per_cls[cls], dim=0) # shape N x F
-            hidden_feats_per_cls[cls] = torch.stack(hidden_feats_per_cls[cls], dim=0) # shape N x F
-        
-        ids_per_cls_train = {cls: list(range(len(graphs))) for cls, graphs in graphs_per_cls.items()}
+                            hidden_feats_per_cls[cls] = hidden_feats_per_cls.get(cls , [])
+                            hidden_feats_per_cls[cls].append(hidden_feats[idx])
+            
+            for cls in args['tasks'][task_i]:
+                raw_feats_per_cls[cls] = torch.stack(raw_feats_per_cls[cls], dim=0) # shape N x F
+                hidden_feats_per_cls[cls] = torch.stack(hidden_feats_per_cls[cls], dim=0) # shape N x F
+            
+            ids_per_cls_train = {cls: list(range(len(graphs))) for cls, graphs in graphs_per_cls.items()}
 
-        # sample and store ids from current task
-        # store only once for each task
-        sampled_ids_per_cls = self.sampler(ids_per_cls_train, self.budget, raw_feats_per_cls, hidden_feats_per_cls, self.d_CM) 
-        for cls, sampled_ids in sampled_ids_per_cls.items():
-            for idx in sampled_ids:
-                self.buffer_graphs.append(graphs_per_cls[cls][idx])
+            # sample and store ids from current task
+            # store only once for each task
+            sampled_ids_per_cls = self.sampler(ids_per_cls_train, self.budget, raw_feats_per_cls, hidden_feats_per_cls, self.d_CM) 
+            for cls, sampled_ids in sampled_ids_per_cls.items():
+                for idx in sampled_ids:
+                    self.buffer_graphs.append(graphs_per_cls[cls][idx])
