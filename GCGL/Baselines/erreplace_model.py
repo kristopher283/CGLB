@@ -154,7 +154,7 @@ class NET(torch.nn.Module):
             loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
 
             # sample from the buffer
-            if task_i > 0:
+            if task_i > 0 and self.buffer_graphs:
                 n = logits.shape[0]
                 # sample the same number of graphs as the original loss
                 batch_data = random.choices(self.buffer_graphs, k=min(n, len(self.buffer_graphs)))
@@ -173,6 +173,7 @@ class NET(torch.nn.Module):
                 loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
                 for i, c in enumerate(clss):
                     labels[labels == c] = i
+
                 loss_aux = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
                 
                 loss = beta * loss + (1 - beta) * loss_aux

@@ -55,6 +55,7 @@ class NET(torch.nn.Module):
         self.current_task = -1
         self.buffer_graphs = []
         self.budget = int(args['sl_args']['budget'])
+        self.max_size = int(args['sl_args']['max_size'] * args['n_cls'] * self.budget)
         self.d_CM = args['sl_args']['d'] # d for CM sampler of ERGNN
         self.aux_g = None
 
@@ -133,6 +134,7 @@ class NET(torch.nn.Module):
         :param args: Same as the args in __init__().
         :param prev_model: The model obtained after learning the previous task.
         """
+
         self.net.train()
         clss = []
         for tid in range(task_i + 1):
@@ -224,6 +226,31 @@ class NET(torch.nn.Module):
             for cls, sampled_ids in sampled_ids_per_cls.items():
                 for idx in sampled_ids:
                     self.buffer_graphs.append(graphs_per_cls[cls][idx])
+            
+            # when the buffer graphs has passed the max_size
+            if len(self.buffer_graphs) > self.max_size:
+                print(f"Current size of replay buffer {len(self.buffer_graphs)} > max_size")
+                buffer_size = len(self.buffer_graphs)
+                ids_per_cls_buffer = {}
+                for cls in clss:
+                    ids_per_cls_buffer[cls] = [idx for idx, graph in enumerate(self.buffer_graphs) if (graph[2] == cls).sum() > 0]
+
+                removed = []
+                while buffer_size > self.max_size:
+                    largest_cls = max(ids_per_cls_buffer, key=lambda cls: len(ids_per_cls_buffer[cls]))
+                    _removed = random.choice(ids_per_cls_buffer[largest_cls])
+                    ids_per_cls_buffer[largest_cls].remove(_removed)
+                    removed.append(_removed)
+                    buffer_size -= 1
+                
+                if len(removed) != len(set(removed)):
+                    import ipdb; ipdb.set_trace()
+                
+                # actually remove them from self.buffer_graphs
+                removed_graphs = [self.buffer_graphs[idx] for idx in removed]
+                for g in removed_graphs:
+                    self.buffer_graphs.remove(g)
+                
 
     def get_sl_loss(self, prev_model, aux_g, cur_feats, args):
         structure_loss = 0

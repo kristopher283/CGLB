@@ -37,11 +37,11 @@ if __name__ == '__main__':
     parser.add_argument('--gem_args', type=str2dict, default={'memory_strength': 0.5, 'n_memories': 100})
     parser.add_argument('--bare_args', type=str2dict, default={'Na': None})
     parser.add_argument('--joint_args', type=str2dict, default={'Na': None})
-    parser.add_argument('--ergnn_args', type=str2dict, default={'budget': [10, 100], 'd': [0.5, 5.0, 50.0], 'sampler': ['CM', 'MF', 'random']},
+    parser.add_argument('--ergnn_args', type=str2dict, default={'budget': [100], 'd': [0.5], 'sampler': ['CM']},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
-    parser.add_argument('--sl_args', type=str2dict, default={'budget': [10, 100], 'd': [0.5, 5.0, 50.0], 'sampler': ['CM', 'MF', 'random']},
+    parser.add_argument('--sl_args', type=str2dict, default={'budget': [200], 'd': [0.5], 'sampler': ['CM'], 'max_size': [0.5]},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
-    parser.add_argument('--erreplace_args', type=str2dict, default={'budget': [20, 200], 'd': [0.5, 5.0, 50.0], 'sampler': ['CM', 'MF', 'random'], 'max_size': [0.5]},
+    parser.add_argument('--erreplace_args', type=str2dict, default={'budget': [200], 'd': [0.5], 'sampler': ['CM'], 'max_size': [0.5]},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
     parser.add_argument('-s', '--random_seed', type=int, default=0,
                         help="seed for exp")
