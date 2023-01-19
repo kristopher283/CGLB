@@ -5,7 +5,7 @@ import pickle
 from dgl.utils import expand_as_pair
 
 samplers = {'CM': CM_sampler(plus=False), 'CM_plus':CM_sampler(plus=True), 'MF':MF_sampler(plus=False), 'MF_plus':MF_sampler(plus=True),'random':random_sampler(plus=False)}
-K_SAMPLES = 5
+K_SAMPLES = 10
 
 
 class NET(torch.nn.Module):
@@ -165,7 +165,7 @@ class NET(torch.nn.Module):
                         cur_diff_vector = None
 
                     if ref_diff_vector is not None and cur_diff_vector is not None:
-                        if (ref_diff_vector == ref_diff_vector).all():
+                        if (ref_diff_vector == cur_diff_vector).all():
                             # Skip if two vectors are similar.
                             continue
                         
@@ -176,7 +176,7 @@ class NET(torch.nn.Module):
                                                                         torch.ones(1).to('cuda:{}'.format(args.gpu)))
                         structure_loss += step_structure_loss
 
-            loss = beta * loss + (1 - beta) * (loss_aux + structure_loss)
+            loss = beta * loss + (1 - beta) * loss_aux + structure_loss * 0.5
 
         loss.backward()
         self.opt.step()
@@ -439,7 +439,7 @@ class NET(torch.nn.Module):
                             cur_diff_vector = None
 
                         if ref_diff_vector is not None and cur_diff_vector is not None:
-                            if (ref_diff_vector == ref_diff_vector).all():
+                            if (ref_diff_vector == cur_diff_vector).all():
                                 # Skip if two vectors are similar.
                                 continue
                             

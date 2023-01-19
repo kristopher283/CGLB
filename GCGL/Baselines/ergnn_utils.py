@@ -14,15 +14,19 @@ class MF_sampler(nn.Module):
 
         return self.sampling(ids_per_cls_train, budget, feats)
 
-    def sampling(self,ids_per_cls_train, budget, vecs):
-        centers = {i: vecs[ids].mean(0) for i, ids in ids_per_cls_train.items()}
-        sim = {i: centers[i].view(1,-1).mm(vecs[ids_per_cls_train[i]].permute(1,0)).squeeze() for i in centers}
+    def sampling(self, ids_per_cls_train, budget, vecs):
+        try:
+            centers = {i: vecs[ids].mean(0) for i, ids in ids_per_cls_train.items()}
+            sim = {i: centers[i].view(1,-1).mm(vecs[ids_per_cls_train[i]].permute(1,0)).squeeze() for i in centers}
+        except:
+            centers = {i: vecs[i][ids].mean(0) for i, ids in ids_per_cls_train.items()}
+            sim = {i: centers[i].view(1,-1).mm(vecs[i][ids_per_cls_train[i]].permute(1,0)).squeeze() for i in centers}
+        
         rank = {i: sim[i].sort()[1].tolist() for i in sim}
         ids_selected = {}
         for i,ids in ids_per_cls_train.items():
             nearest = rank[i][0: min(budget, len(ids_per_cls_train[i]))]
             ids_selected[i] = [ids[i] for i in nearest]
-
         return ids_selected
 
 class CM_sampler(nn.Module):

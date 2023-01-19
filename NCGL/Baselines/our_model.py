@@ -176,7 +176,7 @@ class NET(torch.nn.Module):
                         cur_diff_vector = None
 
                     if ref_diff_vector is not None and cur_diff_vector is not None:
-                        if (ref_diff_vector == ref_diff_vector).all():
+                        if (ref_diff_vector == cur_diff_vector).all():
                             # Skip if two vectors are similar.
                             continue
                         
@@ -187,7 +187,8 @@ class NET(torch.nn.Module):
                                                                         torch.ones(1).to('cuda:{}'.format(args.gpu)))
                         structure_loss += step_structure_loss
 
-            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
+            # loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
+            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss) + structure_loss * 0.5
 
         loss.backward()
         self.opt.step()
@@ -457,7 +458,7 @@ class NET(torch.nn.Module):
                             cur_diff_vector = None
 
                         if ref_diff_vector is not None and cur_diff_vector is not None:
-                            if (ref_diff_vector == ref_diff_vector).all():
+                            if (ref_diff_vector == cur_diff_vector).all():
                                 # Skip if two vectors are similar.
                                 continue
                             
@@ -468,7 +469,8 @@ class NET(torch.nn.Module):
                                                                            torch.ones(1).to('cuda:{}'.format(args.gpu)))
                             structure_loss += step_structure_loss
 
-                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
+                # loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
+                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss) + structure_loss * 0.5
 
             loss.backward()
             self.opt.step()

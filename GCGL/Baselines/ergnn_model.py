@@ -172,8 +172,8 @@ class NET(torch.nn.Module):
                 loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
                 for i, c in enumerate(clss):
                     labels[labels == c] = i
+
                 loss_aux = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
-                
                 loss = beta * loss + (1 - beta) * loss_aux
 
             self.optimizer.zero_grad()

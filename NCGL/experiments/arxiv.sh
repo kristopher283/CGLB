@@ -1,8 +1,8 @@
 # METHOD=ergnn
 # METHOD=erreplace
-# METHOD=dce
+METHOD=dce
 # METHOD=sl
-METHOD=our
+# METHOD=our
 
 CUDA_VISIBLE_DEVICES=0 python train.py \
 --dataset Arxiv-CL \
@@ -12,4 +12,4 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
 --inter-task-edges 'False' \
 --minibatch 'False' \
 --epochs 100 \
---ori_data_path data
+--ori_data_path ./data

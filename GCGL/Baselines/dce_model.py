@@ -1,23 +1,41 @@
-import copy
+import random
+
+import torch.nn as nn
+import numpy as np
 import torch
 from torch.optim import Adam
+import dgl
 from dgllife.utils import Meter
-import numpy as np
-from torch import nn
+from dgllife.model.readout.weighted_sum_and_max import WeightedSumAndMax
+
+from .ergnn_utils import CM_sampler, MF_sampler, random_sampler
+from GCGL.utils import collate_molgraphs
+
+samplers = {'CM': CM_sampler(plus=False), 'CM_plus': CM_sampler(plus=True), 'MF': MF_sampler(plus=False), 'MF_plus': MF_sampler(plus=True), 'random': random_sampler(plus=False)}
 
 def predict(args, model, bg):
-    node_feats = bg.ndata.pop(args['node_data_field']).cuda()
+    node_feats = bg.ndata[args['node_data_field']].cuda()
     if args.get('edge_featurizer', None) is not None:
-        edge_feats = bg.edata.pop(args['edge_data_field']).cuda()
-        outputs = model(bg, node_feats, edge_feats, return_feats=True)
-    else:
-        outputs = model(bg, node_feats, return_feats=True)
-    return outputs
+        edge_feats = bg.edata[args['edge_data_field']].cuda()
+        return model(bg, node_feats, edge_feats)
 
+    return model(bg, node_feats)
+
+def predict_feats(args, model, bg):
+    node_feats = bg.ndata[args['node_data_field']].cuda()
+    if args.get('edge_featurizer', None) is not None:
+        edge_feats = bg.edata[args['edge_data_field']].cuda()
+        _, _, raw_feats, hidden_feats = model(bg, node_feats, edge_feats, return_feats=True)
+
+        return raw_feats.detach(), hidden_feats.detach()
+
+    _, _, raw_feats, hidden_feats = model(bg, node_feats, return_feats=True)
+
+    return raw_feats.detach(), hidden_feats.detach()
 
 class NET(torch.nn.Module):
     """
-    DCE baseline for GCGL tasks
+    Bare model baseline for GCGL tasks
 
     :param model: The backbone GNNs, e.g. GCN, GAT, GIN, etc.
     :param args: The arguments containing the configurations of the experiments including the training parameters like the learning rate, the setting confugurations like class-IL and task-IL, etc. These arguments are initialized in the train.py file and can be specified by the users upon running the code.
@@ -32,23 +50,19 @@ class NET(torch.nn.Module):
         # setup network
         self.net = model
         self.optimizer = Adam(model.parameters(), lr=args['lr'])
-
-        self.current_task = 0
-        self.fisher_loss = {}
-        self.fisher_att = {}
-        self.optpar = {}
-        self.data_loader = None
-
-        self.lambda_l = args['dce_args']['lambda_l']
-        self.lambda_t = args['dce_args']['lambda_t']
-        self.beta = args['dce_args']['beta']
-
+        self.sampler = samplers[args['dce_args']['sampler']]
+        # setup memories
+        self.current_task = -1
+        self.buffer_graphs = []
+        self.budget = int(args['dce_args']['budget'])
+        self.d_CM = args['dce_args']['d'] # d for CM sampler of ERGNN
+        self.aux_g = None
 
     def forward(self, features):
         output = self.net(features)
         return output
 
-    def observe(self, data_loader, loss_criterion, task_i, args, prev_model):
+    def observe(self, data_loader, loss_criterion, task_i, args):
         """
         The method for learning the given tasks under the task-IL setting with multi-label classification datasets.
 
@@ -56,89 +70,22 @@ class NET(torch.nn.Module):
         :param loss_criterion: The loss function.
         :param task_i: Index of the current task.
         :param args: Same as the args in __init__().
-        :param prev_model: The model obtained after learning the previous task.
 
         """
 
         self.net.train()
-        if task_i != self.current_task:
-            self.optimizer.zero_grad()
-            self.fisher_loss[self.current_task] = [] 
-            self.fisher_att[self.current_task] = []  
-            self.optpar[self.current_task] = []
-            for batch_id, batch_data in enumerate(self.data_loader):
-                smiles, bg, labels, masks = batch_data
-                bg = bg.to(f"cuda:{args['gpu']}")
-                labels, masks = labels.cuda(), masks.cuda()
-                logits, _,  _, feats = predict(args, self.net, copy.deepcopy(bg))
-                loss = loss_criterion(logits, labels) * (masks != 0).float()
-                loss = loss[:,self.current_task].mean()
-                dce_loss = 0
-                if prev_model is not None and task_i > 0:
-                    # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
-                    prev_logits, _, _, prev_feats = predict(args, self.net, bg)
-                    for oldt in range(task_i):
-                        dist_logits = logits[:, oldt]
-                        dist_target = prev_logits[:, oldt]
-                        step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args['gpu']}"))
-                        dce_loss += step_dce_loss
-
-                loss += dce_loss
-                loss.backward(retain_graph=True) 
-
-                for p in self.net.parameters():
-                    pd = p.data.clone()
-                    try:
-                        pg = p.grad.data.clone().pow(2)
-                        self.fisher_loss[self.current_task].append(pg)
-                        self.optpar[self.current_task].append(pd)
-                    except:
-                        1
-                self.current_task = task_i
-
         train_meter = Meter()
         for batch_id, batch_data in enumerate(data_loader):
             smiles, bg, labels, masks = batch_data
             bg = bg.to(f"cuda:{args['gpu']}")
             labels, masks = labels.cuda(), masks.cuda()
-            logits, _, _, feats = predict(args, self.net, copy.deepcopy(bg))
+            logits = predict(args, self.net, bg)
 
             # Mask non-existing labels
             loss = loss_criterion(logits, labels) * (masks != 0).float()
             loss = loss[:,task_i].mean()
-            dce_loss = 0
-            if prev_model is not None and task_i > 0:
-                # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
-                prev_logits, _, _, prev_feats = predict(args, self.net, bg)
-                for oldt in range(task_i):
-                    dist_logits = logits[:, oldt]
-                    dist_target = prev_logits[:, oldt]
-                    step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args['gpu']}"))
-                    dce_loss += step_dce_loss
 
-            loss += dce_loss
-            loss.backward(retain_graph=True)
-            grad_norm = 0
-            for p in self.net.parameters():
-                try:
-                    pg = p.grad.data.clone()
-                    grad_norm += torch.norm(pg, p=1)  
-                except:
-                    1
-
-            for tt in range(task_i):
-                i = 0
-                for p in self.net.parameters():
-                    try:
-                        pg = p.grad.data.clone().pow(2)  # error
-                        l = self.lambda_l * self.fisher_loss[tt][i] + self.lambda_t * self.fisher_att[tt][i]
-                        l = l * (p - self.optpar[tt][i]).pow(2)
-                        loss += l.sum()    
-                        i += 1
-                    except:
-                        1
-
-            loss = loss + self.beta * grad_norm 
+            self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             train_meter.update(logits, labels, masks)
@@ -157,91 +104,26 @@ class NET(torch.nn.Module):
         """
         # task Il under multi-class setting
         self.net.train()
-
-        if task_i != self.current_task:
-            self.optimizer.zero_grad()
-            self.fisher_loss[self.current_task] = []
-            self.fisher_att[self.current_task] = []
-            self.optpar[self.current_task] = []
-            clss_old = []  # activated output heads in last task (self.current_task)
-            for tid in range(task_i):
-                clss_old.extend(args['tasks'][tid])
-
-            for batch_id, batch_data in enumerate(self.data_loader[self.current_task]):
-                smiles, bg, labels, masks = batch_data
-                bg = bg.to(f"cuda:{args['gpu']}")
-                labels, masks = labels.cuda(), masks.cuda()
-                logits, _, _, feats = predict(args, self.net, bg)
-
-                # class balance
-                n_per_cls = [(labels == j).sum() for j in clss_old]
-                loss_w_ = [1. / max(i, 1) for i in n_per_cls]
-                loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
-                # labels= labels.long()
-                for i, c in enumerate(clss_old):
-                    labels[labels == c] = i
-
-                loss = loss_criterion(logits[:, clss_old], labels.long(), weight=loss_w_).float()
-                #loss = loss[:, self.current_task].mean()
-                loss.backward(retain_graph=True)
-
-                for p in self.net.parameters():
-                    pd = p.data.clone()
-                    try:
-                        pg = p.grad.data.clone().pow(2)
-                        self.fisher_loss[self.current_task].append(pg)
-                        self.optpar[self.current_task].append(pd)
-                    except:
-                        1
-            self.current_task = task_i
-
-        clss = []
-        for tid in range(task_i + 1):
-            clss.extend(args['tasks'][tid])
+        clss = args['tasks'][task_i]
         for batch_id, batch_data in enumerate(data_loader[task_i]):
             smiles, bg, labels, masks = batch_data
             bg = bg.to(f"cuda:{args['gpu']}")
             labels, masks = labels.cuda(), masks.cuda()
-            logits, _, _,  feats = predict(args, self.net, bg)
+            logits = predict(args, self.net, bg)
 
             # class balance
             n_per_cls = [(labels == j).sum() for j in clss]
             loss_w_ = [1. / max(i, 1) for i in n_per_cls]
             loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
-            # labels= labels.long()
             for i, c in enumerate(clss):
                 labels[labels == c] = i
-
-            # Mask non-existing labels
             loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
-            #loss = loss[:, task_i].mean()
 
-            loss.backward(retain_graph=True)
-            grad_norm = 0
-            for p in self.net.parameters():
-                try:
-                    pg = p.grad.data.clone()
-                    grad_norm += torch.norm(pg, p=1)
-                except:
-                    1
-
-            for tt in range(task_i):
-                i = 0
-                for p in self.net.parameters():
-                    try:
-                        pg = p.grad.data.clone().pow(2)  # error
-                        l = self.lambda_l * self.fisher_loss[tt][i] + self.lambda_t * self.fisher_att[tt][i]
-                        l = l * (p - self.optpar[tt][i]).pow(2)
-                        loss += l.sum()
-                        i += 1
-                    except:
-                        1
-
-            loss = loss + self.beta * grad_norm
+            self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-    def observe_clsIL(self, data_loader, loss_criterion, task_i, args):
+    def observe_clsIL(self, data_loader, loss_criterion, task_i, args, prev_model, last_epoch=False):
         """
         The method for learning the given tasks under the class-IL setting with multi-class classification datasets.
 
@@ -249,51 +131,20 @@ class NET(torch.nn.Module):
         :param loss_criterion: The loss function.
         :param task_i: Index of the current task.
         :param args: Same as the args in __init__().
+        :param prev_model: The model obtained after learning the previous task.
 
         """
+
         self.net.train()
+        clss = []
+        for tid in range(task_i + 1):
+            clss.extend(args['tasks'][tid])
 
-        if task_i != self.current_task:
-            clss_old = args['tasks'][self.current_task]
-            self.optimizer.zero_grad()
-            self.fisher_loss[self.current_task] = []
-            self.fisher_att[self.current_task] = []
-            self.optpar[self.current_task] = []
-
-            for batch_id, batch_data in enumerate(self.data_loader[self.current_task]):
-                smiles, bg, labels, masks = batch_data
-                bg = bg.to(f"cuda:{args['gpu']}")
-                labels, masks = labels.cuda(), masks.cuda()
-                logits, _, _, feats = predict(args, self.net, bg)
-
-                # class balance
-                n_per_cls = [(labels == j).sum() for j in clss_old]
-                loss_w_ = [1. / max(i, 1) for i in n_per_cls]
-                loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
-                # labels= labels.long()
-                for i, c in enumerate(clss_old):
-                    labels[labels == c] = i
-
-                loss = loss_criterion(logits[:, clss_old], labels.long(), weight=loss_w_).float()
-                #loss = loss[:, self.current_task].mean()
-                loss.backward(retain_graph=True)
-
-                for p in self.net.parameters():
-                    pd = p.data.clone()
-                    try:
-                        pg = p.grad.data.clone().pow(2)
-                        self.fisher_loss[self.current_task].append(pg)
-                        self.optpar[self.current_task].append(pd)
-                    except:
-                        1
-            self.current_task = task_i
-
-        clss = args['tasks'][task_i]
         for batch_id, batch_data in enumerate(data_loader[task_i]):
             smiles, bg, labels, masks = batch_data
             bg = bg.to(f"cuda:{args['gpu']}")
             labels, masks = labels.cuda(), masks.cuda()
-            logits, _, _, feats = predict(args, self.net, bg)
+            logits, _ = predict(args, self.net, bg)
 
             # class balance
             n_per_cls = [(labels == j).sum() for j in clss]
@@ -301,32 +152,86 @@ class NET(torch.nn.Module):
             loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
             for i, c in enumerate(clss):
                 labels[labels == c] = i
-
-            # Mask non-existing labels
             loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
-            #loss = loss[:, task_i].mean()
 
-            loss.backward(retain_graph=True)
-            grad_norm = 0
-            for p in self.net.parameters():
-                try:
-                    pg = p.grad.data.clone()
-                    grad_norm += torch.norm(pg, p=1)
-                except:
-                    1
+            # sample from the buffer
+            if task_i > 0:
+                n = logits.shape[0]
+                # sample the same number of graphs as the original loss
+                batch_data = random.choices(self.buffer_graphs, k=min(n, len(self.buffer_graphs)))
+                n_buffer = len(batch_data)
+                beta = n_buffer / (n_buffer + n)
 
-            for tt in range(task_i):
-                i = 0
-                for p in self.net.parameters():
-                    try:
-                        pg = p.grad.data.clone().pow(2)  # error
-                        l = self.lambda_l * self.fisher_loss[tt][i] + self.lambda_t * self.fisher_att[tt][i]
-                        l = l * (p - self.optpar[tt][i]).pow(2)
-                        loss += l.sum()
-                        i += 1
-                    except:
-                        1
+                smiles, bg, labels, masks = collate_molgraphs(batch_data)
 
-            loss = loss + self.beta * grad_norm
+                bg = bg.to(f"cuda:{args['gpu']}")
+                labels, masks = labels.cuda(), masks.cuda()
+                logits, _ = predict(args, self.net, bg)
+
+                # class balance
+                n_per_cls = [(labels == j).sum() for j in clss]
+                loss_w_ = [1. / max(i, 1) for i in n_per_cls]
+                loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
+                for i, c in enumerate(clss):
+                    labels[labels == c] = i
+
+                dce_loss = 0
+                if prev_model is not None:
+                    # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
+                    prev_logits, _ = predict(args, prev_model, bg)
+                    for oldt in range(task_i):
+                        dist_logits = logits[:, oldt]
+                        dist_target = prev_logits[:, oldt]
+                        step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args['gpu']}"))
+                        dce_loss += step_dce_loss
+
+                loss_aux = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
+                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)
+
+            self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+
+        if last_epoch:
+            # prepare the graph features for the replay
+            graphs_per_cls = {}
+            raw_feats_per_cls = {}
+            hidden_feats_per_cls = {}
+            with torch.no_grad():
+                for batch_id, batch_data in enumerate(data_loader[task_i]):
+                    smiles, bg, labels, masks = batch_data
+                    bg = bg.to(f"cuda:{args['gpu']}")
+                    labels, masks = labels.cuda(), masks.cuda()
+                    # TODO: verify if we need to pool it to get the graph feature
+                    raw_feats, hidden_feats = predict_feats(args, self.net, bg)
+                    bg = dgl.unbatch(bg)
+
+                    for cls in args['tasks'][task_i]:
+                        ids = torch.nonzero(labels == cls).squeeze().tolist()
+                        for idx in ids:
+                            smile = smiles[idx]
+                            g = bg[idx]
+                            label = labels[idx]
+                            mask = masks[idx]
+
+                            graphs_per_cls[cls] = graphs_per_cls.get(cls, [])
+                            graphs_per_cls[cls].append([smile, g, label, mask])
+
+                            raw_feats_per_cls[cls] = raw_feats_per_cls.get(cls , [])
+                            raw_feats_per_cls[cls].append(raw_feats[idx])
+
+                            hidden_feats_per_cls[cls] = hidden_feats_per_cls.get(cls , [])
+                            hidden_feats_per_cls[cls].append(hidden_feats[idx])
+            
+            for cls in args['tasks'][task_i]:
+                raw_feats_per_cls[cls] = torch.stack(raw_feats_per_cls[cls], dim=0) # shape N x F
+                hidden_feats_per_cls[cls] = torch.stack(hidden_feats_per_cls[cls], dim=0) # shape N x F
+            
+            ids_per_cls_train = {cls: list(range(len(graphs))) for cls, graphs in graphs_per_cls.items()}
+
+            # sample and store ids from current task
+            # store only once for each task
+            sampled_ids_per_cls = self.sampler(ids_per_cls_train, self.budget, raw_feats_per_cls, hidden_feats_per_cls, self.d_CM) 
+            for cls, sampled_ids in sampled_ids_per_cls.items():
+                for idx in sampled_ids:
+                    self.buffer_graphs.append(graphs_per_cls[cls][idx])

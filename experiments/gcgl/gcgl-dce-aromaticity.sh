@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=1 python GCGL/train.py \
 	--dataset Aromaticity-CL \
-	--method sl \
+	--method dce \
 	--backbone GCN \
 	--gpu 0 \
 	--clsIL True \

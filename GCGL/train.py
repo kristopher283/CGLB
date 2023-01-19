@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='G-CGL')
     parser.add_argument('--backbone', type=str, default='GCN', choices=['CusGCN','GCN', 'GAT', 'Weave', 'HPNs'],
                         help='Model to use')
-    parser.add_argument('--method', type=str, choices=['bare', 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain', 'dce', 'ergnn', 'erreplace', 'sl'],
+    parser.add_argument('--method', type=str, choices=['bare', 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain', 'dce', 'ergnn', 'erreplace', 'sl', 'our'],
                         default='twp', help='Method to use')
     parser.add_argument('-d', '--dataset', type=str, choices=['SIDER-tIL','Tox21-tIL','Aromaticity-CL'], default='Aromaticity-CL',
                         help='Dataset to use')
@@ -31,7 +31,6 @@ if __name__ == '__main__':
     # parameters for different methods
     parser.add_argument('--lwf_args', type=str2dict, default={'lambda_dist': [1.0], 'T': [2.0]})
     parser.add_argument('--twp_args', type=str2dict, default={'lambda_l': 10000., 'lambda_t': 100., 'beta': 0.1})
-    parser.add_argument('--dce_args', type=str2dict, default={'lambda_l': 10000., 'lambda_t': 100., 'beta': 0.1})
     parser.add_argument('--ewc_args', type=str2dict, default={'memory_strength': [10000.,1000000.]})
     parser.add_argument('--mas_args', type=str2dict, default={'memory_strength': 10000.})
     parser.add_argument('--gem_args', type=str2dict, default={'memory_strength': 0.5, 'n_memories': 100})
@@ -41,7 +40,11 @@ if __name__ == '__main__':
                         help='sampler options: CM, CM_plus, MF, MF_plus')
     parser.add_argument('--sl_args', type=str2dict, default={'budget': [10, 100], 'd': [0.5, 5.0, 50.0], 'sampler': ['CM', 'MF', 'random']},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--dce_args', type=str2dict, default={'budget': [10, 100], 'd': [0.5, 5.0, 50.0], 'sampler': ['CM', 'MF', 'random']},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
     parser.add_argument('--erreplace_args', type=str2dict, default={'budget': [20, 200], 'd': [0.5, 5.0, 50.0], 'sampler': ['CM', 'MF', 'random'], 'max_size': [0.5]},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--our_args', type=str2dict, default={'budget': [10, 100], 'd': [0.5, 5.0, 50.0], 'sampler': ['CM', 'MF', 'random']},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
     parser.add_argument('-s', '--random_seed', type=int, default=0,
                         help="seed for exp")
@@ -66,7 +69,8 @@ if __name__ == '__main__':
 
     method_args = {'lwf': args['lwf_args'], 'twp': args['twp_args'],'jointtrain':args['joint_args'],'jointreplay':args['joint_args'],
                    'ewc': args['ewc_args'], 'bare': args['bare_args'], 'gem': args['gem_args'], 'mas': args['mas_args'],
-                   'dce': args['dce_args'], 'ergnn': args['ergnn_args'], 'erreplace': args['erreplace_args'], 'sl': args['sl_args']}
+                   'dce': args['dce_args'], 'ergnn': args['ergnn_args'], 'erreplace': args['erreplace_args'], 'sl': args['sl_args'],
+                   'our': args['our_args']}
     hyp_param_list = compose_hyper_params(method_args[args['method']])
     AP_best, name_best = 0, None
     #AP_best, name_best, model_best, hyp_best = 0, None, None, None

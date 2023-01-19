@@ -1,5 +1,6 @@
 import random
 
+import torch.nn as nn
 import numpy as np
 import torch
 from torch.optim import Adam
@@ -11,8 +12,6 @@ from .ergnn_utils import CM_sampler, MF_sampler, random_sampler
 from GCGL.utils import collate_molgraphs
 
 samplers = {'CM': CM_sampler(plus=False), 'CM_plus': CM_sampler(plus=True), 'MF': MF_sampler(plus=False), 'MF_plus': MF_sampler(plus=True), 'random': random_sampler(plus=False)}
-K_SAMPLES = 10
-
 
 def predict(args, model, bg, return_node_feats=False):
     node_feats = bg.ndata[args['node_data_field']].cuda()
@@ -51,12 +50,12 @@ class NET(torch.nn.Module):
         # setup network
         self.net = model
         self.optimizer = Adam(model.parameters(), lr=args['lr'])
-        self.sampler = samplers[args['sl_args']['sampler']]
+        self.sampler = samplers[args['our_args']['sampler']]
         # setup memories
         self.current_task = -1
         self.buffer_graphs = []
-        self.budget = int(args['sl_args']['budget'])
-        self.d_CM = args['sl_args']['d'] # d for CM sampler of SL
+        self.budget = int(args['our_args']['budget'])
+        self.d_CM = args['our_args']['d'] # d for CM sampler of ERGNN
         self.aux_g = None
 
     def forward(self, features):
@@ -176,10 +175,19 @@ class NET(torch.nn.Module):
                 for i, c in enumerate(clss):
                     labels[labels == c] = i
 
+                dce_loss = 0
+                if prev_model is not None:
+                    # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
+                    prev_logits, _ = predict(args, prev_model, bg)
+                    for oldt in range(task_i):
+                        dist_logits = logits[:, oldt]
+                        dist_target = prev_logits[:, oldt]
+                        step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args['gpu']}"))
+                        dce_loss += step_dce_loss
+
                 loss_aux = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
-                # loss = beta * loss + (1 - beta) * loss_aux
                 loss_sl = self.get_sl_loss(prev_model, bg, feats, args)
-                loss = beta * loss + (1 - beta) * (loss_aux + loss_sl)
+                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + loss_sl)
 
             self.optimizer.zero_grad()
             loss.backward()

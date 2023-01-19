@@ -467,13 +467,12 @@ def pipeline_multi_class(args, valid=False):
 
         for epoch in range(epochs):
             # Train
-            if args['method'] == 'lwf' or args['method'] == 'dce' or args['method'] == 'sl':
-                if args['method'] == 'sl':
-                    train_func(train_loader, loss_criterion, tid, args, prev_model, last_epoch=epoch == epochs - 1)
-                else:
-                    train_func(train_loader, loss_criterion, tid, args, prev_model)
+            if args['method'] == 'lwf':
+                train_func(train_loader, loss_criterion, tid, args, prev_model)
             elif args['method'] in ['ergnn', 'erreplace']:
                 train_func(train_loader, loss_criterion, tid, args, last_epoch=epoch == epochs - 1)
+            elif args['method'] in ['dce', 'sl']:
+                train_func(train_loader, loss_criterion, tid, args, prev_model, last_epoch=epoch == epochs - 1)
             else:
                 train_func(train_loader, loss_criterion, tid, args)
             
