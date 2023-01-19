@@ -44,7 +44,7 @@ if __name__ == '__main__':
                                  'attn_drop': .6, 'negative_slope': 0.2, 'residual': False})
     parser.add_argument('--GCN-args', default={'h_dims': [256], 'dropout': 0.0, 'batch_norm': False})
     parser.add_argument('--GIN-args', default={'h_dims': [256], 'dropout': 0.0})
-    parser.add_argument('--ergnn_args', type=str2dict, default={'budget': [10, 100, 1000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM, MF', 'random']},
+    parser.add_argument('--ergnn_args', type=str2dict, default={'budget': [10, 100, 1000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM', 'MF', 'random']},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
     parser.add_argument('--erreplace_args', type=str2dict, default={'budget': [20, 200, 2000], 'd': [0.05, 0.5, 5.0], 'sampler': ['CM', 'MF', 'random'], 'max_size': [0.5]},
                         help='sampler options: CM, CM_plus, MF, MF_plus')
