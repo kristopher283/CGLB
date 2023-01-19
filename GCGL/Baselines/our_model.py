@@ -12,6 +12,7 @@ from .ergnn_utils import CM_sampler, MF_sampler, random_sampler
 from GCGL.utils import collate_molgraphs
 
 samplers = {'CM': CM_sampler(plus=False), 'CM_plus': CM_sampler(plus=True), 'MF': MF_sampler(plus=False), 'MF_plus': MF_sampler(plus=True), 'random': random_sampler(plus=False)}
+K_SAMPLES = 10
 
 def predict(args, model, bg, return_node_feats=False):
     node_feats = bg.ndata[args['node_data_field']].cuda()

@@ -187,8 +187,7 @@ class NET(torch.nn.Module):
                                                                         torch.ones(1).to('cuda:{}'.format(args.gpu)))
                         structure_loss += step_structure_loss
 
-            # loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
-            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss) + structure_loss * 0.5
+            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
 
         loss.backward()
         self.opt.step()
@@ -469,8 +468,7 @@ class NET(torch.nn.Module):
                                                                            torch.ones(1).to('cuda:{}'.format(args.gpu)))
                             structure_loss += step_structure_loss
 
-                # loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
-                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss) + structure_loss * 0.5
+                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss + structure_loss)
 
             loss.backward()
             self.opt.step()

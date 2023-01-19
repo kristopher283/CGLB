@@ -18,7 +18,7 @@ def assign_hyp_param(args, params):
         args['lwf_args'] = params
     if args['method']=='dce':
         args['dce_args'] = params
-    if args['method']=='sl':
+    if args['method'] == 'sl':
         args['sl_args'] = params
     if args['method'] == 'bare':
         args['bare_args'] = params
@@ -34,8 +34,8 @@ def assign_hyp_param(args, params):
         args['joint_args'] = params
     if args['method'] == 'ergnn':
         args['ergnn_args'] = params
-    if args['method'] == 'sl':
-        args['sl_args'] = params
+    if args['method'] == 'our':
+        args['our_args'] = params
     if args['method'] == 'erreplace':
         args['erreplace_args'] = params
 
@@ -376,7 +376,7 @@ def pipeline_multi_label(args, valid=False):
                 dt.date(), dt.hour, dt.minute, dt.second,str(random.randint(100,999))))
         for epoch in range(epochs):
             # Train
-            if args['method'] == 'lwf' or args['method'] == 'dce':
+            if args['method'] in ['lwf', 'dce', 'our', 'sl']:
                 life_model_ins.observe(train_loader, loss_criterion, tid, args, prev_model)
             else:
                 life_model_ins.observe(train_loader, loss_criterion, tid, args)
@@ -398,7 +398,7 @@ def pipeline_multi_label(args, valid=False):
             mkdir_if_missing(f"{args['result_path']}/{subfolder_c}/val_models")
             with open(save_model_path, 'wb') as f:
                 pickle.dump(model, f)
-        if args['method'] == 'lwf' or args['method'] == 'dce':
+        if args['method'] in ['lwf', 'dce', 'our', 'sl']:
             prev_model = copy.deepcopy(life_model_ins).cuda(args['gpu']) if valid else None
 
     AP = round(np.mean(score_matrix[-1, :]), 4)
@@ -471,7 +471,7 @@ def pipeline_multi_class(args, valid=False):
                 train_func(train_loader, loss_criterion, tid, args, prev_model)
             elif args['method'] in ['ergnn', 'erreplace']:
                 train_func(train_loader, loss_criterion, tid, args, last_epoch=epoch == epochs - 1)
-            elif args['method'] in ['dce', 'sl']:
+            elif args['method'] in ['dce', 'sl', 'our']:
                 train_func(train_loader, loss_criterion, tid, args, prev_model, last_epoch=epoch == epochs - 1)
             else:
                 train_func(train_loader, loss_criterion, tid, args)

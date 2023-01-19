@@ -1,6 +1,10 @@
-METHOD=ergnn
+# METHOD=ergnn
+# METHOD=erreplace
+# METHOD=dce
+# METHOD=sl
+METHOD=our
 
-CUDA_VISIBLE_DEVICES=3 python GCGL/train.py \
+CUDA_VISIBLE_DEVICES=1 python GCGL/train.py \
 	--dataset Aromaticity-CL \
 	--method $METHOD \
 	--backbone GCN \

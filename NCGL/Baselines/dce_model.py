@@ -135,8 +135,7 @@ class NET(torch.nn.Module):
                     step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
                     dce_loss += step_dce_loss
 
-            # loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)
-            loss = beta * loss + (1 - beta) * loss_aux + dce_loss * 0.5
+            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)
 
         loss.backward()
         self.opt.step()
@@ -370,7 +369,6 @@ class NET(torch.nn.Module):
                         dce_loss += step_dce_loss
 
                 loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)
-                # loss = beta * loss + (1 - beta) * loss_aux + dce_loss * 0.5
 
 
             loss.backward()
