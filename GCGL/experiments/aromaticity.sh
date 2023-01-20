@@ -1,8 +1,10 @@
+# METHOD=bare
 # METHOD=ergnn
 # METHOD=erreplace
 # METHOD=dce
 # METHOD=sl
-METHOD=our
+# METHOD=our
+METHOD=jointtrain
 
 CUDA_VISIBLE_DEVICES=1 python GCGL/train.py \
 	--dataset Aromaticity-CL \

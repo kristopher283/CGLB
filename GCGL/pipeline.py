@@ -376,8 +376,12 @@ def pipeline_multi_label(args, valid=False):
                 dt.date(), dt.hour, dt.minute, dt.second,str(random.randint(100,999))))
         for epoch in range(epochs):
             # Train
-            if args['method'] in ['lwf', 'dce', 'our', 'sl']:
+            if args['method'] == 'lwf':
                 life_model_ins.observe(train_loader, loss_criterion, tid, args, prev_model)
+            elif args['method'] in ['ergnn', 'erreplace']:
+                life_model_ins.observe(train_loader, loss_criterion, tid, args, last_epoch=epoch == epochs - 1)
+            elif args['method'] in ['dce', 'sl', 'our']:
+                life_model_ins.observe(train_loader, loss_criterion, tid, args, prev_model, last_epoch=epoch == epochs - 1)
             else:
                 life_model_ins.observe(train_loader, loss_criterion, tid, args)
 

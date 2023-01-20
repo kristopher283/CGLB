@@ -1,10 +1,10 @@
-METHOD=ergnn
+# METHOD=ergnn
 # METHOD=erreplace
 # METHOD=dce
 # METHOD=sl
-# METHOD=our
+METHOD=our
 
-CUDA_VISIBLE_DEVICES=2 python train.py \
+CUDA_VISIBLE_DEVICES=0 python train.py \
 --dataset Products-CL \
 --method $METHOD  \
 --gpu 0 \

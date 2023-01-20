@@ -482,7 +482,6 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
     prev_model = None
     n_cls_so_far = 0
     data_prepare(args)
-    # import pdb; pdb.set_trace()
     for task, task_cls in enumerate(args.task_seq):
         name, ite = args.current_model_save_path
         config_name = name.split('/')[-1]

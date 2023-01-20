@@ -1,8 +1,8 @@
-# METHOD=ergnn
+METHOD=ergnn
 # METHOD=erreplace
 # METHOD=dce
 # METHOD=sl
-METHOD=our
+# METHOD=our
 
 CUDA_VISIBLE_DEVICES=2 python train.py \
 --dataset Reddit-CL \
