@@ -112,7 +112,8 @@ class NET(torch.nn.Module):
                 target_ = target_[0]
             o1, o2 = self.task_manager.get_label_offset(t - 1)
             logits_dist = logits[train_ids,o1:o2]
-            dist_target = target_[train_ids:, o1:o2]
+            # dist_target = target_[train_ids:, o1:o2]
+            dist_target = target_[train_ids, o1:o2]
             dist_loss = MultiClassCrossEntropy(logits_dist, dist_target, args.lwf_args['T'])
             loss = loss + args.lwf_args['lambda_dist']*dist_loss
         loss.backward()

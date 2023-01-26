@@ -9,6 +9,7 @@ from pipeline import *
 import sys
 dir_home = os.getcwd()
 sys.path.append(os.path.join(dir_home,'.local/lib/python3.7/site-packages')) # for hpc usage
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CGLB')
     parser.add_argument("--dataset", type=str, default='Products-CL', help='Products-CL, Reddit-CL, Arxiv-CL, CoraFull-CL')

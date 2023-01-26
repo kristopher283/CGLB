@@ -5,7 +5,7 @@ import pickle
 from dgl.utils import expand_as_pair
 
 samplers = {'CM': CM_sampler(plus=False), 'CM_plus':CM_sampler(plus=True), 'MF':MF_sampler(plus=False), 'MF_plus':MF_sampler(plus=True),'random':random_sampler(plus=False)}
-K_SAMPLES = 5
+K_SAMPLES = 30
 
 
 class NET(torch.nn.Module):

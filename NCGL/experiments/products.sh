@@ -2,7 +2,7 @@
 # METHOD=erreplace
 # METHOD=dce
 # METHOD=sl
-METHOD=our
+# METHOD=our
 
 CUDA_VISIBLE_DEVICES=0 python train.py \
 --dataset Products-CL \

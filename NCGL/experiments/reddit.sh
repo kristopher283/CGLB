@@ -3,8 +3,16 @@ METHOD=ergnn
 # METHOD=dce
 # METHOD=sl
 # METHOD=our
+# METHOD=joint
+# METHOD=ewc
+# METHOD=mas
+# METHOD=gem
+# METHOD=twp
+# METHOD=lwf
+# METHOD=bare
+METHOD=joint
 
-CUDA_VISIBLE_DEVICES=2 python train.py \
+CUDA_VISIBLE_DEVICES=0 python train.py \
 --dataset Reddit-CL \
 --method $METHOD  \
 --gpu 0 \
@@ -12,4 +20,4 @@ CUDA_VISIBLE_DEVICES=2 python train.py \
 --inter-task-edges 'False' \
 --minibatch 'True' \
 --epochs 100 \
---ori_data_path data
+--ori_data_path /home/thanh/Workspaces/Ex/CGLB/NCGL/data

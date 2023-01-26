@@ -1,8 +1,16 @@
 # METHOD=ergnn
 # METHOD=erreplace
-METHOD=dce
+# METHOD=dce
 # METHOD=sl
 # METHOD=our
+# METHOD=joint
+# METHOD=ewc
+# METHOD=mas
+# METHOD=gem
+# METHOD=twp
+# METHOD=lwf
+# METHOD=bare
+METHOD=joint
 
 CUDA_VISIBLE_DEVICES=0 python train.py \
 --dataset Arxiv-CL \
