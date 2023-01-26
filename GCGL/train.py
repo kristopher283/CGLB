@@ -20,7 +20,7 @@ if __name__ == '__main__':
                         help='Model to use')
     parser.add_argument('--method', type=str, choices=['bare', 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain', 'dce', 'ergnn', 'erreplace', 'sl', 'our'],
                         default='twp', help='Method to use')
-    parser.add_argument('-d', '--dataset', type=str, choices=['SIDER-tIL','Tox21-tIL','Aromaticity-CL'], default='Aromaticity-CL',
+    parser.add_argument('-d', '--dataset', type=str, choices=['SIDER-tIL','Tox21-tIL','Aromaticity-CL', 'ENZYMES-CL'], default='Aromaticity-CL',
                         help='Dataset to use')
     parser.add_argument('--clsIL', type=strtobool, default=False)
     parser.add_argument('-p', '--pre-trained', action='store_true',
@@ -50,7 +50,6 @@ if __name__ == '__main__':
                         help="seed for exp")
     parser.add_argument('--alpha_dis', type=float, default=0.1)
     parser.add_argument('--classifier_increase',default=False,help='this is deprecated, no effect at all')
-    #parser.add_argument('--n_cls_per_task', default=1)
     parser.add_argument('--num_epochs',type=int,default=2)
     parser.add_argument('--batch_size',type=int,default=128)
     parser.add_argument('--threshold_pubchem', default=20)
@@ -86,7 +85,7 @@ if __name__ == '__main__':
         hyp_params_str = str(hyp_params).replace("'",'').replace(' ','').replace(',','_').replace(':','_')
         assign_hyp_param(args, hyp_params)
         main = get_pipeline(args)
-        if args['dataset'] in ['Aromaticity-CL']:
+        if args['dataset'] in ['Aromaticity-CL', 'ENZYMES-CL']:
             args['n_cls_per_task'] = 2
             if args['clsIL']:
                 subfolder = f"clsIL/{args['frac_train']}/"
