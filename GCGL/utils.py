@@ -137,7 +137,94 @@ class GraphLevelDataset():
                     val_set.append(Subset(dataset, val_ids_task))
                     test_set.append(Subset(dataset, test_ids_task))
                 args['n_train_examples'] = len(train_ids_task)
+        
+        elif args['dataset'] in ['ENZYMES', 'ENZYMES-CL']:
+            from GCGL.datasets.enzymes import create_dgl_dataset, read_classes
+            dataset = create_dgl_dataset("GCGL/datasets/ENZYMES_CL", "ENZYMES", device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            args['tasks'] = read_classes("GCGL/datasets/ENZYMES_CL")
+            clss = [c for classes in args['tasks'] for c in classes]            
+            
+            
+            dataset.labels = dataset.labels.view(-1)
+            n_per_cls = np.array([(dataset.labels == i).sum() for i in range((dataset.labels.max().int().item() + 1))])
+            selected_clss = (n_per_cls > args['threshold_pubchem']).nonzero()[
+                0].tolist()  # at least 3 examples for train val test splittings
+            ids_per_cls = {i: (dataset.labels == i).nonzero().view(-1).tolist() for i in selected_clss}
+            args['n_per_cls'] = {i: len(ids_per_cls[i]) for i in ids_per_cls}
 
+            frac_list = np.asarray([args['frac_train'], args['frac_val'], args['frac_test']])
+            train_set, val_set, test_set = [], [], []
+            train_ids_task, val_ids_task, test_ids_task = [], [], []
+
+            if args['method'] not in ['jointtrain', 'jointreplay'] or not args['clsIL']:
+                for clss in args['tasks']:
+                    train_ids_task, val_ids_task, test_ids_task = [], [], []
+                    for cls in clss:
+                        ids = ids_per_cls[cls]
+                        assert np.allclose(np.sum(frac_list), 1.), \
+                            'Expect frac_list sum to 1, got {:.4f}'.format(np.sum(frac_list))
+                        num_data = len(ids)
+                        lengths = (num_data * frac_list).astype(int)
+                        for i in range(len(lengths) - 1, 0, -1):
+                            lengths[i] = max(1, lengths[i])  # ensure at least one example for test and val
+                        lengths[0] = num_data - np.sum(lengths[1:])
+                        split = [ids[offset - length:offset] for offset, length in zip(accumulate(lengths), lengths)]
+                        train_ids_task.extend(split[0])
+                        val_ids_task.extend(split[1])
+                        test_ids_task.extend(split[2])
+                    train_set.append(Subset(dataset, train_ids_task))
+                    val_set.append(Subset(dataset, val_ids_task))
+                    test_set.append(Subset(dataset, test_ids_task))
+                args['n_train_examples'] = len(train_ids_task)
+
+            elif args['method'] is 'none':
+                train_ids_task, val_ids_task, test_ids_task = [], [], []
+                for clss in args['tasks']:
+                    for cls in clss:
+                        ids = ids_per_cls[cls]
+                        random.shuffle(ids)
+                        assert np.allclose(np.sum(frac_list), 1.), \
+                            'Expect frac_list sum to 1, got {:.4f}'.format(np.sum(frac_list))
+                        num_data = len(ids)
+                        lengths = (num_data * frac_list).astype(int)
+                        for i in range(len(lengths) - 1, 0, -1):
+                            lengths[i] = max(1, lengths[i])  # ensure at least one example for test and val
+                        lengths[0] = num_data - np.sum(lengths[1:])
+                        split = [ids[offset - length:offset] for offset, length in zip(accumulate(lengths), lengths)]
+                        train_ids_task.extend(split[0])
+                        val_ids_task.extend(split[1])
+                        test_ids_task.extend(split[2])
+                train_set.append(Subset(dataset, train_ids_task))
+                val_set.append(Subset(dataset, val_ids_task))
+                test_set.append(Subset(dataset, test_ids_task))
+                args['n_train_examples'] = len(train_ids_task)
+
+            elif args['method'] in ['jointreplay','jointtrain']:
+                # train_ids_task, val_ids_task, test_ids_task = [], [], []
+                for cid, _ in enumerate(args['tasks']):
+                    clss = []
+                    train_ids_task, val_ids_task, test_ids_task = [], [], []
+                    for c in args['tasks'][0:cid + 1]:
+                        clss.extend(c)
+                    for cls in clss:
+                        ids = ids_per_cls[cls]
+                        random.shuffle(ids)
+                        assert np.allclose(np.sum(frac_list), 1.), \
+                            'Expect frac_list sum to 1, got {:.4f}'.format(np.sum(frac_list))
+                        num_data = len(ids)
+                        lengths = (num_data * frac_list).astype(int)
+                        for i in range(len(lengths) - 1, 0, -1):
+                            lengths[i] = max(1, lengths[i])  # ensure at least one example for test and val
+                        lengths[0] = num_data - np.sum(lengths[1:])
+                        split = [ids[offset - length:offset] for offset, length in zip(accumulate(lengths), lengths)]
+                        train_ids_task.extend(split[0])
+                        val_ids_task.extend(split[1])
+                        test_ids_task.extend(split[2])
+                    train_set.append(Subset(dataset, train_ids_task))
+                    val_set.append(Subset(dataset, val_ids_task))
+                    test_set.append(Subset(dataset, test_ids_task))
+                args['n_train_examples'] = len(train_ids_task)
+        
         self.dataset, self.train_set, self.val_set, self.test_set = dataset, train_set, val_set, test_set
 
 
