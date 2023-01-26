@@ -403,7 +403,7 @@ def pipeline_multi_label(args, valid=False):
             with open(save_model_path, 'wb') as f:
                 pickle.dump(model, f)
         if args['method'] in ['lwf', 'dce', 'our', 'sl']:
-            prev_model = copy.deepcopy(life_model_ins).cuda(args['gpu']) if valid else None
+            prev_model = copy.deepcopy(life_model_ins.net).cuda(args['gpu']) if valid else None
 
     AP = round(np.mean(score_matrix[-1, :]), 4)
     print('AP: ', round(np.mean(score_matrix[-1, :]), 4))

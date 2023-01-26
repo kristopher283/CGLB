@@ -2,9 +2,10 @@
 # METHOD=erreplace
 # METHOD=dce
 # METHOD=sl
-METHOD=our
+# METHOD=our
+METHOD=joint
 
-CUDA_VISIBLE_DEVICES=0 python train.py \
+CUDA_VISIBLE_DEVICES=3 python train.py \
 --dataset Products-CL \
 --method $METHOD  \
 --gpu 0 \
