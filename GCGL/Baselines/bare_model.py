@@ -61,7 +61,6 @@ class NET(torch.nn.Module):
             self.optimizer.step()
             train_meter.update(logits, labels, masks)
 
-        train_score = np.mean(train_meter.compute_metric(args['metric_name']))
 
     def observe_tskIL_multicls(self, data_loader, loss_criterion, task_i, args):
         """
@@ -75,6 +74,7 @@ class NET(torch.nn.Module):
         """
         # task Il under multi-class setting
         self.net.train()
+        loss = 0
         clss = args['tasks'][task_i]
         for batch_id, batch_data in enumerate(data_loader[task_i]):
             smiles, bg, labels, masks = batch_data
@@ -88,11 +88,11 @@ class NET(torch.nn.Module):
             loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args['gpu']))
             for i, c in enumerate(clss):
                 labels[labels == c] = i
-            loss = loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
+            loss += loss_criterion(logits[:, clss], labels.long(), weight=loss_w_).float()
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
     def observe_clsIL(self, data_loader, loss_criterion, task_i, args):
         """
