@@ -403,7 +403,7 @@ def pipeline_multi_label(args, valid=False):
             with open(save_model_path, 'wb') as f:
                 pickle.dump(model, f)
         if args['method'] in ['lwf', 'dce', 'our', 'sl']:
-            prev_model = copy.deepcopy(life_model_ins).cuda(args['gpu']) if valid else None
+            prev_model = copy.deepcopy(life_model_ins.net).cuda(args['gpu']) if valid else None
 
     AP = round(np.mean(score_matrix[-1, :]), 4)
     print('AP: ', round(np.mean(score_matrix[-1, :]), 4))
@@ -484,21 +484,27 @@ def pipeline_multi_class(args, valid=False):
         if not valid:
             # if testing, load the trained model
             model = pickle.load(open(save_model_path,'rb')).cuda(args['gpu'])
+
         score_matrix[tid] = test_func(args, model, test_loader, tid)
+
         if valid:
             mkdir_if_missing(f"{args['result_path']}/{subfolder_c}/val_models")
             with open(save_model_path, 'wb') as f:
                 pickle.dump(model, f)
-        if args['method'] == 'lwf':
-            prev_model = copy.deepcopy(life_model_ins).cuda(args['gpu']) if valid else None
+
+        # NOTE: all distillation-based method
+        if args['method'] in ['lwf', 'dce', 'sl', 'our']:
+            prev_model = copy.deepcopy(life_model_ins.net).cuda(args['gpu']) if valid else None
 
     AP = round(np.mean(score_matrix[-1, :]), 4)
     print('AP: ', AP)
+
     backward = []
     for t in range(args['n_tasks'] - 1):
         b = score_matrix[args['n_tasks'] - 1][t] - score_matrix[t][t]
         backward.append(round(b, 4))
     mean_backward = round(np.mean(backward), 4)
     print('AF: ', mean_backward)
+
     return AP, mean_backward, score_matrix
 

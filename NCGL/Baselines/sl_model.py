@@ -5,7 +5,7 @@ import pickle
 from dgl.utils import expand_as_pair
 
 samplers = {'CM': CM_sampler(plus=False), 'CM_plus':CM_sampler(plus=True), 'MF':MF_sampler(plus=False), 'MF_plus':MF_sampler(plus=True),'random':random_sampler(plus=False)}
-K_SAMPLES = 30
+K_SAMPLES = 50
 
 
 class NET(torch.nn.Module):
@@ -413,7 +413,7 @@ class NET(torch.nn.Module):
                     soft_edges = self.aux_g.edata.pop('se')
 
                     rand_k_node_samples = random.sample(range(0, self.aux_g.num_nodes()), K_SAMPLES)
-                    # rand_k_node_samples = random.sample(range(0, self.aux_g.num_nodes()), int(self.aux_g.num_nodes() * 0.1))
+                    # rand_k_node_samples = random.sample(range(0, self.aux_g.num_nodes()), int(self.aux_g.num_nodes() * 0.3))
                     for node_idx in rand_k_node_samples:
                         # For the old (previous task) model.
                         # Get the different in term of features between the target node and its neighbor nodes. (This aims to extract the

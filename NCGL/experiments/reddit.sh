@@ -1,4 +1,4 @@
-METHOD=ergnn
+# METHOD=ergnn
 # METHOD=erreplace
 # METHOD=dce
 # METHOD=sl
@@ -20,4 +20,4 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
 --inter-task-edges 'False' \
 --minibatch 'True' \
 --epochs 100 \
---ori_data_path /home/thanh/Workspaces/Ex/CGLB/NCGL/data
+--ori_data_path data

@@ -281,9 +281,9 @@ class NET(torch.nn.Module):
                     
                     # Calculate the difference (similarity) of the learned structure information between the old model and the
                     # current model.
-                    step_structure_loss = nn.CosineEmbeddingLoss()(torch.unsqueeze(ref_diff_vector, dim=0),
+                    step_structure_loss = torch.nn.CosineEmbeddingLoss()(torch.unsqueeze(ref_diff_vector, dim=0),
                                                                     torch.unsqueeze(cur_diff_vector, dim=0),
-                                                                    torch.ones(1).to('cuda:{}'.format(args.gpu)))
+                                                                    torch.ones(1).cuda(args['gpu']))
                     structure_loss += step_structure_loss
 
         return structure_loss
