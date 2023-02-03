@@ -5,7 +5,7 @@ from pipeline import *
 import sys
 import os
 dir_home = os.getcwd()
-sys.path.append(os.path.join(dir_home,'continual_graph_learning/CGLB')) # for hpc usage
+sys.path.append(dir_home) # for hpc usage
 sys.path.append(os.path.join(dir_home,'.local/lib/python3.7/site-packages')) # for hpc usage
 from NCGL.visualize import *
 
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='G-CGL')
     parser.add_argument('--backbone', type=str, default='GCN', choices=['CusGCN','GCN', 'GAT', 'Weave', 'HPNs'],
                         help='Model to use')
-    parser.add_argument('--method', type=str, choices=['bare', 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain'],
+    parser.add_argument('--method', type=str, choices=['bare', 'lwf', 'gem', 'ewc', 'mas', 'twp', 'jointtrain', 'dce', 'ergnn', 'erreplace', 'sl', 'our'],
                         default='twp', help='Method to use')
     parser.add_argument('-d', '--dataset', type=str, choices=['SIDER-tIL','Tox21-tIL','Aromaticity-CL'], default='Aromaticity-CL',
                         help='Dataset to use')
@@ -36,7 +36,16 @@ if __name__ == '__main__':
     parser.add_argument('--gem_args', type=str2dict, default={'memory_strength': 0.5, 'n_memories': 100})
     parser.add_argument('--bare_args', type=str2dict, default={'Na': None})
     parser.add_argument('--joint_args', type=str2dict, default={'Na': None})
-
+    parser.add_argument('--ergnn_args', type=str2dict, default={'budget': [10, 100], 'd': [0.5], 'sampler': ['CM']},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--sl_args', type=str2dict, default={'budget': [20, 200], 'd': [0.5], 'sampler': ['CM'], 'max_size': [0.5]},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--dce_args', type=str2dict, default={'budget': [20, 200], 'd': [0.5], 'sampler': ['CM'], 'max_size': [0.5]},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--erreplace_args', type=str2dict, default={'budget': [20, 200], 'd': [0.5], 'sampler': ['CM'], 'max_size': [0.5]},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
+    parser.add_argument('--our_args', type=str2dict, default={'budget': [20, 200], 'd': [0.5], 'sampler': ['CM'], 'max_size': [0.5]},
+                        help='sampler options: CM, CM_plus, MF, MF_plus')
     parser.add_argument('-s', '--random_seed', type=int, default=0,
                         help="seed for exp")
     parser.add_argument('--alpha_dis', type=float, default=0.1)
@@ -59,7 +68,9 @@ if __name__ == '__main__':
     args.update(get_exp_configure(args['exp']))
 
     method_args = {'lwf': args['lwf_args'], 'twp': args['twp_args'],'jointtrain':args['joint_args'],'jointreplay':args['joint_args'],
-                   'ewc': args['ewc_args'], 'bare': args['bare_args'], 'gem': args['gem_args'], 'mas': args['mas_args']}
+                   'ewc': args['ewc_args'], 'bare': args['bare_args'], 'gem': args['gem_args'], 'mas': args['mas_args'],
+                   'dce': args['dce_args'], 'ergnn': args['ergnn_args'], 'erreplace': args['erreplace_args'], 'sl': args['sl_args'],
+                   'our': args['our_args']}
     hyp_param_list = compose_hyper_params(method_args[args['method']])
     AP_best, name_best = 0, None
     #AP_best, name_best, model_best, hyp_best = 0, None, None, None
@@ -133,11 +144,12 @@ if __name__ == '__main__':
                 AP_best = np.mean(AP_dict[hyp_params_str])
                 hyp_best_str = hyp_params_str
                 name_best = name
-            print(f'best params is {hyp_best_str}, best AP is {AP_best}')
+                print(f'best params is {hyp_best_str}, best AP is {AP_best}')
             with open(f"{args['result_path']}/{name}.pkl", 'wb') as f:
                 pickle.dump(acc_matrices, f)
 
     # save the models
+    name_best = name
     config_name = name_best.split('/')[-1]
     subfolder_c = name_best.split(config_name)[-2]
     print('----------Now in testing--------')

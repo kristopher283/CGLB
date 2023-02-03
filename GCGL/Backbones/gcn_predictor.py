@@ -87,11 +87,12 @@ class GCNPredictor(nn.Module):
                        batchnorm=batchnorm,
                        dropout=dropout)
         gnn_out_feats = self.gnn.hidden_feats[-1]
+        self.raw_readout = WeightedSumAndMax(in_feats)
         self.readout = WeightedSumAndMax(gnn_out_feats)
         self.predict = MLPPredictor(2 * gnn_out_feats, predictor_hidden_feats,
                                     n_tasks, predictor_dropout)
 
-    def forward(self, bg, feats):
+    def forward(self, bg, feats, return_feats=False, return_node_feats=False):
         """Graph-level regression/soft classification.
         Parameters
         ----------
@@ -108,6 +109,11 @@ class GCNPredictor(nn.Module):
             * B for the number of graphs in the batch
         """
         node_feats, att = self.gnn(bg, feats)
+        raw_graph_feats = self.raw_readout(bg, feats)
+        hidden_graph_feats = self.readout(bg, node_feats)
+        if return_feats:
+            return self.predict(hidden_graph_feats), att, raw_graph_feats, hidden_graph_feats
+        if return_node_feats:
+            return self.predict(hidden_graph_feats), node_feats
 
-        graph_feats = self.readout(bg, node_feats)
-        return self.predict(graph_feats), att
+        return self.predict(hidden_graph_feats), att

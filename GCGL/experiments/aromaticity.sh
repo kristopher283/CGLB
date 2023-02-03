@@ -1,0 +1,17 @@
+# METHOD=bare
+# METHOD=ergnn
+# METHOD=erreplace
+# METHOD=dce
+# METHOD=sl
+# METHOD=our
+METHOD=jointtrain
+
+CUDA_VISIBLE_DEVICES=1 python GCGL/train.py \
+	--dataset Aromaticity-CL \
+	--method $METHOD \
+	--backbone GCN \
+	--gpu 0 \
+	--clsIL 'True' \
+	--num_epochs 100 \
+	--result_path GCGL/results
+

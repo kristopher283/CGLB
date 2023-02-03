@@ -25,7 +25,7 @@ class NET(torch.nn.Module):
 
         # setup network
         self.net = model
-        self.sampler = samplers[args.ergnn_args['sampler']]
+        self.sampler = samplers[args.dce_args['sampler']]
 
         # setup optimizer
         self.opt = torch.optim.Adam(self.net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -36,15 +36,16 @@ class NET(torch.nn.Module):
         # setup memories
         self.current_task = -1
         self.buffer_node_ids = []
-        self.budget = int(args.ergnn_args['budget'])
-        self.d_CM = args.ergnn_args['d'] # d for CM sampler of ERGNN
+        self.budget = int(args.dce_args['budget'])
+        self.max_size = int(args.dce_args['max_size'] * args.n_cls * self.budget)
+        self.d_CM = args.dce_args['d'] # d for CM sampler of ERGNN
         self.aux_g = None
 
     def forward(self, features):
         output = self.net(features)
         return output
 
-    def observe(self, args, g, features, labels, t, train_ids, ids_per_cls, dataset):
+    def observe(self, args, g, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
         The method for learning the given tasks under the class-IL setting.
 
@@ -53,6 +54,7 @@ class NET(torch.nn.Module):
         :param features: Node features of the current task.
         :param labels: Labels of the nodes in the current task.
         :param t: Index of the current task.
+        :prev_model: The previous task model.
         :param train_ids: The indices of the nodes participating in the training.
         :param ids_per_cls: Indices of the nodes in each class.
         :param dataset: The entire dataset.
@@ -91,6 +93,22 @@ class NET(torch.nn.Module):
                 g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
                 self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
                 self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+                # TODO: when self.buffer_node_ids is full, start to replace nodes with more class
+                if len(self.buffer_node_ids) > self.max_size:
+                    print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
+                    _ids_per_cls = [torch.nonzero(self.aux_labels == j).squeeze().tolist() for j in range(args.n_cls)]
+                    _node_ids_per_cls = [[self.buffer_node_ids[idx] for idx in ids] for ids in _ids_per_cls]
+                    while len(self.buffer_node_ids) > self.max_size:
+                        largest_cls = max(enumerate(_node_ids_per_cls), key=lambda item: len(item[1]))[0]
+                        _removed = random.choice(_node_ids_per_cls[largest_cls])
+                        _node_ids_per_cls[largest_cls].remove(_removed)
+                        self.buffer_node_ids.remove(_removed)
+
+                # TODO: run it again with the correct size
+                g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
+                self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
+                self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+
                 if args.cls_balance:
                     n_per_cls = [(self.aux_labels == j).sum() for j in range(args.n_cls)]
                     loss_w_ = [1. / max(i, 1) for i in n_per_cls]  # weight to balance the loss of different class
@@ -105,12 +123,24 @@ class NET(torch.nn.Module):
                 loss_aux = self.ce(output[:, offset1:offset2], self.aux_labels, weight=self.aux_loss_w_[offset1: offset2])
             else:
                 loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
-            loss = beta*loss + (1-beta)*loss_aux
+
+            dce_loss = 0
+            if prev_model is not None:
+                # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
+                prev_output, _ = prev_model(self.aux_g, self.aux_features)
+                for oldt in range(t):
+                    o1, o2 = self.task_manager.get_label_offset(oldt)
+                    dist_logits = output[:, o1:o2]
+                    dist_target = prev_output[:, o1:o2]
+                    step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
+                    dce_loss += step_dce_loss
+
+            loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)
 
         loss.backward()
         self.opt.step()
 
-    def observe_task_IL(self, args, g, features, labels, t, train_ids, ids_per_cls, dataset):
+    def observe_task_IL(self, args, g, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
         The method for learning the given tasks under the task-IL setting.
 
@@ -176,7 +206,7 @@ class NET(torch.nn.Module):
         loss.backward()
         self.opt.step()
 
-    def observe_task_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
+    def observe_task_IL_batch(self, args, g, dataloader, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
         The method for learning the given tasks under the task-IL setting with mini-batch training.
 
@@ -247,7 +277,7 @@ class NET(torch.nn.Module):
             loss.backward()
             self.opt.step()
 
-    def observe_class_IL_batch(self, args, g, dataloader, features, labels, t, train_ids, ids_per_cls, dataset):
+    def observe_class_IL_batch(self, args, g, dataloader, features, labels, t, prev_model, train_ids, ids_per_cls, dataset):
         """
         The method for learning the given tasks under the class-IL setting with mini-batch training.
 
@@ -296,12 +326,29 @@ class NET(torch.nn.Module):
                     self.aux_g = g.to(device='cuda:{}'.format(args.gpu))
                     self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
 
+                    # TODO: when self.buffer_node_ids is full, start to replace nodes with more class
+                    if len(self.buffer_node_ids) > self.max_size:
+                        print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
+                        _ids_per_cls = [torch.nonzero(self.aux_labels == j).squeeze().tolist() for j in range(args.n_cls)]
+                        _node_ids_per_cls = [[self.buffer_node_ids[idx] for idx in ids] for ids in _ids_per_cls]
+                        while len(self.buffer_node_ids) > self.max_size:
+                            largest_cls = max(enumerate(_node_ids_per_cls), key=lambda item: len(item[1]))[0]
+                            _removed = random.choice(_node_ids_per_cls[largest_cls])
+                            _node_ids_per_cls[largest_cls].remove(_removed)
+                            self.buffer_node_ids.remove(_removed)
+
+                    # TODO: run it again with the correct size
+                    g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
+                    self.aux_g = g.to(device='cuda:{}'.format(args.gpu))
+                    self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+
                     if args.cls_balance:
                         n_per_cls = [(self.aux_labels == j).sum() for j in range(args.n_cls)]
                         loss_w_ = [1. / max(i, 1) for i in n_per_cls]  # weight to balance the loss of different class
                     else:
                         loss_w_ = [1. for i in range(args.n_cls)]
                     self.aux_loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args.gpu))
+
             if t != 0:
                 output, _ = self.net(self.aux_g, self.aux_features)
                 if args.classifier_increase:
@@ -309,6 +356,20 @@ class NET(torch.nn.Module):
                                        weight=self.aux_loss_w_[offset1: offset2])
                 else:
                     loss_aux = self.ce(output, self.aux_labels, weight=self.aux_loss_w_)
-                loss = beta * loss + (1 - beta) * loss_aux
+
+                dce_loss = 0
+                if prev_model is not None:
+                    # If there is a previous model, then we get the previous model's logits to calculate the distillation loss.
+                    prev_output, _ = prev_model(self.aux_g, self.aux_features)
+                    for oldt in range(t):
+                        o1, o2 = self.task_manager.get_label_offset(oldt)
+                        dist_logits = output[:, o1:o2]
+                        dist_target = prev_output[:, o1:o2]
+                        step_dce_loss = nn.CosineEmbeddingLoss()(dist_logits.reshape(1, -1), dist_target.reshape(1, -1), torch.ones(1).to(f"cuda:{args.gpu}"))
+                        dce_loss += step_dce_loss
+
+                loss = beta * loss + (1 - beta) * (loss_aux + dce_loss)
+
+
             loss.backward()
             self.opt.step()

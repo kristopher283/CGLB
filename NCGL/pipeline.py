@@ -71,6 +71,7 @@ def data_prepare(args):
     args.d_data, args.n_cls = dataset.d_data, dataset.n_cls
     cls = [list(range(i, i + args.n_cls_per_task)) for i in range(0, args.n_cls-1, args.n_cls_per_task)]
     args.task_seq = cls
+
     args.n_tasks = len(args.task_seq)
     n_cls_so_far = 0
     # check whether the preprocessed data exist and can be loaded
@@ -135,14 +136,16 @@ def pipeline_task_IL_no_inter_edge(args, valid=False):
         features, labels = subgraph.srcdata['feat'], subgraph.dstdata['label'].squeeze()
         task_manager.add_task(task, n_cls_so_far)
 
-        for epoch in range(epochs):
-            if args.method == 'lwf':
+        for _ in range(epochs):
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe_task_IL(args, subgraph, features, labels, task, prev_model, train_ids,
                                                ids_per_cls, dataset)
             else:
                 life_model_ins.observe_task_IL(args, subgraph, features, labels, task, train_ids, ids_per_cls, dataset)
+
         if not valid:
             model = pickle.load(open(save_model_path,'rb')).cuda(args.gpu)
+
         acc_mean = []
         for t in range(task + 1):
             subgraph, ids_per_cls, [train_ids, valid_ids_, test_ids_] = pickle.load(open(
@@ -233,7 +236,7 @@ def pipeline_task_IL_inter_edge(args, valid=False):
             train_ids_current_task.extend(ids)
 
         for epoch in range(epochs):
-            if args.method == 'lwf':
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe_task_IL(args, subgraph, features, labels, task, prev_model,
                                                train_ids_current_task, ids_per_cls_current_task, dataset)
             else:
@@ -495,7 +498,7 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
 
         # training
         for epoch in range(epochs):
-            if args.method == 'lwf':
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe(args, subgraph, features, labels, task, prev_model, train_ids, ids_per_cls, dataset)
             else:
                 life_model_ins.observe(args, subgraph, features, labels, task, train_ids, ids_per_cls, dataset)
@@ -503,6 +506,7 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
 
         if not valid:
             model = pickle.load(open(save_model_path,'rb')).cuda(args.gpu)
+
         acc_mean = []
         # test
         for t in range(task+1):
@@ -589,7 +593,7 @@ def pipeline_class_IL_inter_edge(args, valid=False):
             train_ids_current_task.extend(ids)
 
         for epoch in range(epochs):
-            if args.method == 'lwf':
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe(args, subgraph, features, labels, task, prev_model,
                                                train_ids_current_task, ids_per_cls_current_task, dataset)
             else:
@@ -849,7 +853,7 @@ def pipeline_task_IL_no_inter_edge_minibatch(args, valid=False):
                                                     drop_last=False)
 
         for epoch in range(epochs):
-            if args.method == 'lwf':
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe_task_IL_batch(args, subgraph, dataloader, features, labels, task, prev_model, train_ids, ids_per_cls,
                                        dataset)
             else:
@@ -1128,7 +1132,7 @@ def pipeline_class_IL_no_inter_edge_minibatch(args, valid=False):
                                                     drop_last=False)
 
         for epoch in range(epochs):
-            if args.method == 'lwf':
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe_class_IL_batch(args, subgraph, dataloader, features, labels, task, prev_model, train_ids, ids_per_cls,
                                        dataset)
             else:
@@ -1222,7 +1226,7 @@ def pipeline_task_IL_inter_edge_minibatch(args, valid=False):
         task_manager.add_task(task, n_cls_so_far)
 
         for epoch in range(epochs):
-            if args.method == 'lwf':
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe_task_IL_batch(args, subgraph, dataloader, features, labels, task, prev_model,
                                                train_ids_current_task, ids_per_cls_current_task, dataset)
             else:
@@ -1412,7 +1416,7 @@ def pipeline_class_IL_inter_edge_minibatch(args, valid=False):
                                                     drop_last=False)
 
         for epoch in range(epochs):
-            if args.method == 'lwf':
+            if args.method == 'lwf' or args.method == 'dce' or args.method == 'sl' or args.method == 'our':
                 life_model_ins.observe_class_IL_batch(args, subgraph, dataloader, features, labels, task, prev_model,
                                                train_ids_current_task, ids_per_cls_current_task, dataset)
             else:

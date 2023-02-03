@@ -25,7 +25,7 @@ class NET(torch.nn.Module):
 
         # setup network
         self.net = model
-        self.sampler = samplers[args.ergnn_args['sampler']]
+        self.sampler = samplers[args.erreplace_args['sampler']]
 
         # setup optimizer
         self.opt = torch.optim.Adam(self.net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -36,8 +36,9 @@ class NET(torch.nn.Module):
         # setup memories
         self.current_task = -1
         self.buffer_node_ids = []
-        self.budget = int(args.ergnn_args['budget'])
-        self.d_CM = args.ergnn_args['d'] # d for CM sampler of ERGNN
+        self.budget = int(args.erreplace_args['budget'])
+        self.max_size = int(args.erreplace_args['max_size'] * args.n_cls * self.budget)
+        self.d_CM = args.erreplace_args['d'] # d for CM sampler of ERGNN
         self.aux_g = None
 
     def forward(self, features):
@@ -91,6 +92,22 @@ class NET(torch.nn.Module):
                 g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
                 self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
                 self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+                # TODO: when self.buffer_node_ids is full, start to replace nodes with more class
+                if len(self.buffer_node_ids) > self.max_size:
+                    print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
+                    _ids_per_cls = [torch.nonzero(self.aux_labels == j).squeeze().tolist() for j in range(args.n_cls)]
+                    _node_ids_per_cls = [[self.buffer_node_ids[idx] for idx in ids] for ids in _ids_per_cls]
+                    while len(self.buffer_node_ids) > self.max_size:
+                        largest_cls = max(enumerate(_node_ids_per_cls), key=lambda item: len(item[1]))[0]
+                        _removed = random.choice(_node_ids_per_cls[largest_cls])
+                        _node_ids_per_cls[largest_cls].remove(_removed)
+                        self.buffer_node_ids.remove(_removed)
+
+                # TODO: run it again with the correct size
+                g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
+                self.aux_g = g.to(device='cuda:{}'.format(features.get_device()))
+                self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+
                 if args.cls_balance:
                     n_per_cls = [(self.aux_labels == j).sum() for j in range(args.n_cls)]
                     loss_w_ = [1. / max(i, 1) for i in n_per_cls]  # weight to balance the loss of different class
@@ -296,12 +313,29 @@ class NET(torch.nn.Module):
                     self.aux_g = g.to(device='cuda:{}'.format(args.gpu))
                     self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
 
+                    # TODO: when self.buffer_node_ids is full, start to replace nodes with more class
+                    if len(self.buffer_node_ids) > self.max_size:
+                        print(f"Current size of replay buffer {len(self.buffer_node_ids)} > max_size")
+                        _ids_per_cls = [torch.nonzero(self.aux_labels == j).squeeze().tolist() for j in range(args.n_cls)]
+                        _node_ids_per_cls = [[self.buffer_node_ids[idx] for idx in ids] for ids in _ids_per_cls]
+                        while len(self.buffer_node_ids) > self.max_size:
+                            largest_cls = max(enumerate(_node_ids_per_cls), key=lambda item: len(item[1]))[0]
+                            _removed = random.choice(_node_ids_per_cls[largest_cls])
+                            _node_ids_per_cls[largest_cls].remove(_removed)
+                            self.buffer_node_ids.remove(_removed)
+
+                    # TODO: run it again with the correct size
+                    g, __, _ = dataset.get_graph(node_ids=self.buffer_node_ids)
+                    self.aux_g = g.to(device='cuda:{}'.format(args.gpu))
+                    self.aux_features, self.aux_labels = self.aux_g.srcdata['feat'], self.aux_g.dstdata['label'].squeeze()
+
                     if args.cls_balance:
                         n_per_cls = [(self.aux_labels == j).sum() for j in range(args.n_cls)]
                         loss_w_ = [1. / max(i, 1) for i in n_per_cls]  # weight to balance the loss of different class
                     else:
                         loss_w_ = [1. for i in range(args.n_cls)]
                     self.aux_loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args.gpu))
+
             if t != 0:
                 output, _ = self.net(self.aux_g, self.aux_features)
                 if args.classifier_increase:

@@ -8,7 +8,7 @@ from dgllife.utils import EarlyStopping, Meter
 from torch.nn import BCEWithLogitsLoss
 from torch.utils.data import DataLoader
 import copy
-from utils import collate_molgraphs, load_model, GraphLevelDataset
+from utils import collate_molgraphs, load_model, GraphLevelDataset, set_random_seed
 import os
 import errno
 import pickle
@@ -16,6 +16,10 @@ joint_alias = ['joint', 'Joint', 'joint_replay_all', 'jointtrain', 'jointreplay'
 def assign_hyp_param(args, params):
     if args['method']=='lwf':
         args['lwf_args'] = params
+    if args['method']=='dce':
+        args['dce_args'] = params
+    if args['method'] == 'sl':
+        args['sl_args'] = params
     if args['method'] == 'bare':
         args['bare_args'] = params
     if args['method'] == 'gem':
@@ -28,6 +32,12 @@ def assign_hyp_param(args, params):
         args['twp_args'] = params
     if args['method'] in joint_alias:
         args['joint_args'] = params
+    if args['method'] == 'ergnn':
+        args['ergnn_args'] = params
+    if args['method'] == 'our':
+        args['our_args'] = params
+    if args['method'] == 'erreplace':
+        args['erreplace_args'] = params
 
 
 def str2dict(s):
@@ -311,7 +321,7 @@ def pipeline_multi_label(args, valid=False):
     '''
     epochs = args['num_epochs'] if valid else 0
     torch.cuda.set_device(args['gpu'])
-    # set_random_seed(args['random_seed'])
+    set_random_seed(args['random_seed'])
     G = GraphLevelDataset(args)
     dataset, train_set, val_set, test_set = G.dataset, G.train_set, G.val_set, G.test_set
     args['n_cls'] = dataset.labels.shape[1]
@@ -368,6 +378,10 @@ def pipeline_multi_label(args, valid=False):
             # Train
             if args['method'] == 'lwf':
                 life_model_ins.observe(train_loader, loss_criterion, tid, args, prev_model)
+            elif args['method'] in ['ergnn', 'erreplace']:
+                life_model_ins.observe(train_loader, loss_criterion, tid, args, last_epoch=epoch == epochs - 1)
+            elif args['method'] in ['dce', 'sl', 'our']:
+                life_model_ins.observe(train_loader, loss_criterion, tid, args, prev_model, last_epoch=epoch == epochs - 1)
             else:
                 life_model_ins.observe(train_loader, loss_criterion, tid, args)
 
@@ -388,8 +402,8 @@ def pipeline_multi_label(args, valid=False):
             mkdir_if_missing(f"{args['result_path']}/{subfolder_c}/val_models")
             with open(save_model_path, 'wb') as f:
                 pickle.dump(model, f)
-        if args['method'] == 'lwf':
-            prev_model = copy.deepcopy(life_model_ins).cuda(args['gpu']) if valid else None
+        if args['method'] in ['lwf', 'dce', 'our', 'sl']:
+            prev_model = copy.deepcopy(life_model_ins.net).cuda(args['gpu']) if valid else None
 
     AP = round(np.mean(score_matrix[-1, :]), 4)
     print('AP: ', round(np.mean(score_matrix[-1, :]), 4))
@@ -459,27 +473,38 @@ def pipeline_multi_class(args, valid=False):
             # Train
             if args['method'] == 'lwf':
                 train_func(train_loader, loss_criterion, tid, args, prev_model)
+            elif args['method'] in ['ergnn', 'erreplace']:
+                train_func(train_loader, loss_criterion, tid, args, last_epoch=epoch == epochs - 1)
+            elif args['method'] in ['dce', 'sl', 'our']:
+                train_func(train_loader, loss_criterion, tid, args, prev_model, last_epoch=epoch == epochs - 1)
             else:
                 train_func(train_loader, loss_criterion, tid, args)
+            
 
         if not valid:
             # if testing, load the trained model
             model = pickle.load(open(save_model_path,'rb')).cuda(args['gpu'])
+
         score_matrix[tid] = test_func(args, model, test_loader, tid)
+
         if valid:
             mkdir_if_missing(f"{args['result_path']}/{subfolder_c}/val_models")
             with open(save_model_path, 'wb') as f:
                 pickle.dump(model, f)
-        if args['method'] == 'lwf':
-            prev_model = copy.deepcopy(life_model_ins).cuda(args['gpu']) if valid else None
+
+        # NOTE: all distillation-based method
+        if args['method'] in ['lwf', 'dce', 'sl', 'our']:
+            prev_model = copy.deepcopy(life_model_ins.net).cuda(args['gpu']) if valid else None
 
     AP = round(np.mean(score_matrix[-1, :]), 4)
     print('AP: ', AP)
+
     backward = []
     for t in range(args['n_tasks'] - 1):
         b = score_matrix[args['n_tasks'] - 1][t] - score_matrix[t][t]
         backward.append(round(b, 4))
     mean_backward = round(np.mean(backward), 4)
     print('AF: ', mean_backward)
+
     return AP, mean_backward, score_matrix
 

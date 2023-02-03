@@ -10,6 +10,10 @@ import errno
 def assign_hyp_param(args, params):
     if args.method=='lwf':
         args.lwf_args = params
+    if args.method=='dce':
+        args.dce_args = params
+    if args.method=='sl':
+        args.sl_args = params
     if args.method == 'bare':
         args.bare_args = params
     if args.method == 'gem':
@@ -24,6 +28,10 @@ def assign_hyp_param(args, params):
         args.joint_args = params
     if args.method == 'ergnn':
         args.ergnn_args = params
+    if args.method == 'erreplace':
+        args.erreplace_args = params
+    if args.method == 'our':
+        args.our_args = params
 
 
 def str2dict(s):
